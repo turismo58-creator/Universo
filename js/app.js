@@ -1,45 +1,42 @@
 (() => {
   'use strict';
 
-  /*
-   * This file is intentionally idempotent. Safari can restore this document
-   * from its back-forward cache, and some hosts can evaluate a script twice.
-   * A second evaluation must not add listeners, timers, stars or audio.
-   */
   if (window.__andreaUniverseInitialized) return;
   window.__andreaUniverseInitialized = true;
 
-  const STORAGE_KEYS = Object.freeze({
-    started: 'experienceStarted',
-    scroll: 'lastScrollPosition',
-    scene: 'lastScene',
-    music: 'musicCurrentTime',
-    ending: 'endingState'
+  /* CONFIG */
+  const CONFIG = Object.freeze({
+    sceneCount: 10,
+    transitionMs: 820,
+    transitionLowMs: 560,
+    audioSource: './cancion/algo-que-se-quede.mp3',
+    audioVolume: 0.22,
+    audioFadeMs: 3000,
+    shootingMinMs: 12000,
+    shootingMaxMs: 20000
   });
 
-  const AUDIO_SOURCE = './cancion/algo-que-se-quede.mp3';
-  const AUDIO_VOLUME = 0.22;
-  const AUDIO_FADE_MS = 3000;
-  const SCROLL_SAVE_DELAY = 240;
+  const STORAGE_KEYS = Object.freeze({
+    started: 'experienceStarted',
+    scene: 'currentScene',
+    musicTime: 'musicCurrentTime',
+    musicMuted: 'musicMuted',
+    interactive: 'interactiveState'
+  });
 
   const SUNFLOWER_WORDS = Object.freeze([
-    'Escucharte.',
-    'Buscarte.',
-    'Proponer.',
-    'Estar.',
-    'Aprender.',
-    'Cuidar.',
-    'Sorprender.',
-    'Demostrar.'
+    'Escucharte',
+    'Buscarte',
+    'Proponer',
+    'Estar',
+    'Aprender',
+    'Cuidar',
+    'Sorprender',
+    'Demostrar'
   ]);
 
   const CONSTELLATION_POSITIONS = Object.freeze([
-    [13, 61],
-    [29, 27],
-    [47, 44],
-    [65, 19],
-    [84, 48],
-    [64, 79]
+    [13, 61], [29, 27], [47, 44], [65, 19], [84, 48], [64, 79]
   ]);
 
   const ANDREA_LAYOUT = Object.freeze([
@@ -51,765 +48,694 @@
     { letter: 'A', points: [[0, 6], [.7, 3.9], [1.35, 1.8], [2, 0], [2.65, 1.8], [3.3, 3.9], [4, 6], [1, 3.55], [3, 3.55]] }
   ]);
 
-  const motionQuery = typeof window.matchMedia === 'function'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)')
-    : { matches: false };
-
-  const state = {
-    initialized: false,
-    reducedMotion: Boolean(motionQuery.matches),
-    startedBefore: false,
-    entered: false,
-    restoring: false,
-    restorationCancelled: false,
-    restoredScroll: false,
-    savedScroll: 0,
-    savedScene: '0',
-    currentScene: '0',
-    interactive: {
-      insight: false,
-      proof: false,
-      sunflowerPetals: [],
-      sunflowerCenter: false,
-      constellationVisited: [],
-      secret: false,
-      finale: false,
-      andrea: false,
-      future: false,
-      haptic: false
-    },
-    timers: new Set(),
-    observers: [],
-    sceneRatios: new Map(),
-    scrollSaveTimer: 0,
-    scrollFrame: 0,
-    resizeTimer: 0,
-    shootingTimer: 0,
-    shootingActive: false,
-    sunflowerUnlockTimer: 0,
-    audio: null,
-    audioToggle: null,
-    audioResume: null,
-    audioAvailable: true,
-    audioHasPlayed: false,
-    audioPlaying: false,
-    audioMuted: false,
-    audioFadeFrame: 0,
-    audioSaveAt: 0,
-    savedAudioTime: 0
-  };
-
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-
-  function first(selectors, root = document) {
-    const list = Array.isArray(selectors) ? selectors : [selectors];
-    for (const selector of list) {
-      const node = $(selector, root);
-      if (node) return node;
-    }
-    return null;
-  }
-
-  function unique(selectors, root = document) {
-    const list = Array.isArray(selectors) ? selectors : [selectors];
-    return Array.from(new Set(list.flatMap((selector) => $$(selector, root))));
-  }
-
-  function clamp(value, minimum, maximum) {
-    return Math.min(Math.max(value, minimum), maximum);
-  }
-
-  function number(value, fallback = 0) {
+  const clamp = (value, minimum, maximum) => Math.min(Math.max(value, minimum), maximum);
+  const number = (value, fallback = 0) => {
     const parsed = Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : fallback;
-  }
-
-  function sceneRank(value) {
-    if (value === 'closing') return 14;
-    if (value === 'finale') return 15;
-    return number(value, 0);
-  }
+  };
 
   function seeded(index, salt = 0) {
-    const raw = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+    const raw = Math.sin((index + 1) * 12.9898 + (salt + 1) * 78.233) * 43758.5453;
     return raw - Math.floor(raw);
   }
 
-  function storageRead(key) {
-    try {
-      return window.sessionStorage.getItem(key);
-    } catch (_error) {
-      return null;
-    }
-  }
+  const motionQuery = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : { matches: false, addEventListener: null };
+  const memory = number(navigator.deviceMemory, 8);
 
-  function storageWrite(key, value) {
-    try {
-      window.sessionStorage.setItem(key, String(value));
-    } catch (_error) {
-      // The experience remains complete when storage is unavailable.
-    }
-  }
-
-  function parseInteractiveState(value) {
-    let parsed = {};
-    try {
-      parsed = value ? JSON.parse(value) : {};
-    } catch (_error) {
-      parsed = {};
-    }
-
+  function createInteractiveState() {
     return {
-      insight: parsed.insight === true,
-      proof: parsed.proof === true,
-      sunflowerPetals: Array.isArray(parsed.sunflowerPetals)
-        ? Array.from(new Set(parsed.sunflowerPetals.map((item) => number(item, -1)).filter((item) => item >= 0 && item < 8)))
-        : [],
-      sunflowerCenter: parsed.sunflowerCenter === true,
-      constellationVisited: Array.isArray(parsed.constellationVisited)
-        ? Array.from(new Set(parsed.constellationVisited.map((item) => number(item, -1)).filter((item) => item >= 0)))
-        : [],
-      secret: parsed.secret === true,
-      finale: parsed.finale === true,
-      andrea: parsed.andrea === true,
-      future: parsed.future === true,
-      haptic: parsed.haptic === true
+      version: 2,
+      sceneStatus: Array(CONFIG.sceneCount).fill('unplayed'),
+      reveals: {},
+      insight: false,
+      proof: false,
+      sunflowerBloomed: false,
+      sunflowerPetals: [],
+      sunflowerCenter: false,
+      future: false,
+      universeReady: false,
+      constellationVisited: [],
+      secret: false,
+      andrea: false,
+      final: false
     };
   }
 
-  function setTimer(callback, delay = 0) {
-    const timer = window.setTimeout(() => {
-      state.timers.delete(timer);
-      callback();
-    }, Math.max(0, delay));
-    state.timers.add(timer);
-    return timer;
+  const state = {
+    reducedMotion: Boolean(motionQuery.matches),
+    lowPerformance: Boolean(motionQuery.matches) || memory <= 4,
+    started: false,
+    currentScene: 0,
+    interactive: createInteractiveState(),
+    runtime: null,
+    suspended: false,
+    pausedAnimations: [],
+    lastDialogTrigger: null
+  };
+
+  function duration(milliseconds) {
+    return state.reducedMotion ? Math.min(220, Math.round(milliseconds * .06)) : milliseconds;
   }
 
-  function clearTimer(timer) {
-    if (!timer) return;
-    window.clearTimeout(timer);
-    state.timers.delete(timer);
-  }
+  /* STORAGE */
+  const Storage = {
+    get(key) {
+      try {
+        return window.sessionStorage.getItem(key);
+      } catch (_error) {
+        return null;
+      }
+    },
 
-  function duration(normal, reduced = 0) {
-    return state.reducedMotion ? reduced : normal;
-  }
+    set(key, value) {
+      try {
+        window.sessionStorage.setItem(key, String(value));
+      } catch (_error) {
+        // Private or full storage must never block the experience.
+      }
+    },
 
-  function show(node) {
-    if (!node) return;
-    node.hidden = false;
-    node.removeAttribute('aria-hidden');
-  }
+    remove(key) {
+      try {
+        window.sessionStorage.removeItem(key);
+      } catch (_error) {
+        // Ignore unavailable storage.
+      }
+    },
 
-  function revealImmediately(node) {
-    if (!node) return;
-    show(node);
-    node.style.setProperty('--reveal-delay', '0ms');
-    node.classList.add('is-visible', 'revealed');
-    node.dataset.revealed = 'true';
-    delete node.dataset.revealScheduled;
-  }
+    readJson(key) {
+      try {
+        const raw = this.get(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch (_error) {
+        return null;
+      }
+    },
 
-  function revealNode(node, delay = 0) {
-    if (!node || node.dataset.revealed === 'true' || node.dataset.revealScheduled === 'true') return;
-    show(node);
-    node.dataset.revealScheduled = 'true';
-    node.style.setProperty('--reveal-delay', '0ms');
+    saveInteractive() {
+      this.set(STORAGE_KEYS.interactive, JSON.stringify(state.interactive));
+    },
 
-    setTimer(() => {
-      node.classList.add('is-visible', 'revealed');
-      node.dataset.revealed = 'true';
-      maybeVibrateForLove(node);
-      node.dispatchEvent(new CustomEvent('andrea:revealed', { bubbles: true }));
-    }, duration(clamp(number(delay, 0), 0, 9000), 0));
-  }
-
-  function revealSequence(nodes, step = 220, initialDelay = 0) {
-    const items = Array.from(new Set(nodes.filter(Boolean)));
-    // Reserve the complete layout immediately; only opacity/transform changes.
-    items.forEach(show);
-    items.forEach((node, index) => revealNode(node, initialDelay + index * step));
-    return initialDelay + Math.max(0, items.length - 1) * step;
-  }
-
-  function revealChildren(container, step = 220, initialDelay = 0) {
-    if (!container) return 0;
-    const items = unique([
-      '[data-reveal]',
-      '[data-final-line]',
-      '[data-sequence-item]',
-      '[data-insight-word]',
-      'p'
-    ], container);
-    return revealSequence(items, duration(step, 0), duration(initialDelay, 0));
-  }
-
-  function maybeVibrateForLove(node) {
-    if (state.interactive.haptic || !state.entered || typeof navigator.vibrate !== 'function') return;
-    const text = (node.textContent || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es');
-    if (text !== 'te quiero.' && text !== 'te quiero') return;
-    state.interactive.haptic = true;
-    saveInteractiveState();
-    try {
-      navigator.vibrate(18);
-    } catch (_error) {
-      // Vibration is optional and never affects the story.
+    flush() {
+      this.set(STORAGE_KEYS.started, state.started ? 'true' : 'false');
+      this.set(STORAGE_KEYS.scene, state.currentScene);
+      this.saveInteractive();
+      Audio.saveTime();
     }
-  }
+  };
 
-  function setMotionPreference(event) {
-    state.reducedMotion = Boolean(event ? event.matches : motionQuery.matches);
-    document.documentElement.classList.toggle('reduced-motion', state.reducedMotion);
-  }
+  function normalizeInteractive(raw) {
+    const clean = createInteractiveState();
+    if (!raw || typeof raw !== 'object') return clean;
 
-  function loadExperienceState() {
-    state.startedBefore = storageRead(STORAGE_KEYS.started) === 'true';
-    state.entered = state.startedBefore;
-    state.restoring = state.startedBefore;
-    state.savedScroll = Math.max(0, number(storageRead(STORAGE_KEYS.scroll), 0));
-    state.savedScene = storageRead(STORAGE_KEYS.scene) || '0';
-    state.currentScene = state.savedScene;
-    state.savedAudioTime = Math.max(0, number(storageRead(STORAGE_KEYS.music), 0));
-    state.interactive = parseInteractiveState(storageRead(STORAGE_KEYS.ending));
-  }
-
-  function saveInteractiveState() {
-    storageWrite(STORAGE_KEYS.ending, JSON.stringify(state.interactive));
-  }
-
-  function saveExperienceState() {
-    if (!state.entered) return;
-
-    storageWrite(STORAGE_KEYS.started, 'true');
-    storageWrite(
-      STORAGE_KEYS.scroll,
-      String(Math.round(state.restoring ? state.savedScroll : Math.max(0, window.scrollY)))
-    );
-    storageWrite(STORAGE_KEYS.scene, state.restoring ? state.savedScene : state.currentScene);
-
-    const currentAudioTime = state.audio && Number.isFinite(state.audio.currentTime)
-      ? state.audio.currentTime
-      : state.savedAudioTime;
-    storageWrite(STORAGE_KEYS.music, Math.max(0, currentAudioTime).toFixed(2));
-    saveInteractiveState();
-  }
-
-  function queueExperienceSave() {
-    if (!state.entered || state.restoring || state.scrollSaveTimer) return;
-    state.scrollSaveTimer = setTimer(() => {
-      state.scrollSaveTimer = 0;
-      saveExperienceState();
-    }, SCROLL_SAVE_DELAY);
-  }
-
-  function setAllButtonTypes() {
-    $$('button').forEach((button) => {
-      if (!button.hasAttribute('type')) button.type = 'button';
+    clean.sceneStatus = Array.from({ length: CONFIG.sceneCount }, (_item, index) => {
+      const candidate = Array.isArray(raw.sceneStatus) ? raw.sceneStatus[index] : null;
+      return ['unplayed', 'playing', 'complete'].includes(candidate) ? candidate : 'unplayed';
     });
+    clean.reveals = raw.reveals && typeof raw.reveals === 'object' ? { ...raw.reveals } : {};
+    ['insight', 'proof', 'sunflowerBloomed', 'sunflowerCenter', 'future', 'universeReady', 'secret', 'andrea', 'final'].forEach((key) => {
+      clean[key] = Boolean(raw[key]);
+    });
+    clean.sunflowerPetals = Array.isArray(raw.sunflowerPetals)
+      ? [...new Set(raw.sunflowerPetals.map((value) => Math.trunc(number(value, -1))).filter((value) => value >= 0 && value < 8))]
+      : [];
+    clean.constellationVisited = Array.isArray(raw.constellationVisited)
+      ? [...new Set(raw.constellationVisited.map((value) => Math.trunc(number(value, -1))).filter((value) => value >= 0 && value < 6))]
+      : [];
+    return clean;
   }
 
-  function waitForExperience(callback) {
-    if (state.entered) {
-      callback();
-      return;
+  function migrateLegacyStorage() {
+    if (Storage.get(STORAGE_KEYS.scene) !== null) return;
+    const legacyScene = Storage.get('lastScene');
+    const legacyInteractive = Storage.readJson('endingState');
+    if (legacyScene === null && !legacyInteractive) return;
+
+    const legacyMap = {
+      '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 4,
+      '6': 5, '7': 6, '8': 6, '9': 7, '10': 8, '11': 8,
+      '12': 8, '13': 8, closing: 9, finale: 9
+    };
+    const migratedScene = legacyMap[String(legacyScene)] ?? 1;
+    const migrated = createInteractiveState();
+
+    for (let index = 0; index < migratedScene; index += 1) migrated.sceneStatus[index] = 'complete';
+    migrated.sceneStatus[migratedScene] = migratedScene === 9 && legacyInteractive?.finale ? 'complete' : 'playing';
+
+    if (legacyInteractive) {
+      migrated.insight = Boolean(legacyInteractive.insight);
+      migrated.proof = Boolean(legacyInteractive.proof);
+      migrated.sunflowerBloomed = migratedScene > 4 || Boolean(legacyInteractive.sunflowerCenter);
+      migrated.sunflowerPetals = Array.isArray(legacyInteractive.sunflowerPetals) ? legacyInteractive.sunflowerPetals.slice(0, 8) : [];
+      migrated.sunflowerCenter = Boolean(legacyInteractive.sunflowerCenter);
+      migrated.future = Boolean(legacyInteractive.future);
+      migrated.constellationVisited = Array.isArray(legacyInteractive.constellationVisited) ? legacyInteractive.constellationVisited.slice(0, 6) : [];
+      migrated.universeReady = migratedScene > 7 || migrated.constellationVisited.length > 0;
+      migrated.secret = Boolean(legacyInteractive.secret);
+      migrated.andrea = Boolean(legacyInteractive.andrea);
+      migrated.final = Boolean(legacyInteractive.finale);
     }
-    document.addEventListener('andrea:experience-started', callback, { once: true });
+
+    Storage.set(STORAGE_KEYS.scene, migratedScene);
+    Storage.set(STORAGE_KEYS.interactive, JSON.stringify(migrated));
+    Storage.set(STORAGE_KEYS.musicMuted, 'false');
+    Storage.remove('lastScrollPosition');
+    Storage.remove('lastScene');
+    Storage.remove('endingState');
   }
 
-  function observeOnce(target, callback, options = {}) {
-    if (!target || typeof callback !== 'function') return;
+  function loadState() {
+    migrateLegacyStorage();
+    state.started = Storage.get(STORAGE_KEYS.started) === 'true';
+    state.interactive = normalizeInteractive(Storage.readJson(STORAGE_KEYS.interactive));
+    state.currentScene = state.started
+      ? clamp(Math.trunc(number(Storage.get(STORAGE_KEYS.scene), 1)), 0, CONFIG.sceneCount - 1)
+      : 0;
 
-    waitForExperience(() => {
-      if (state.reducedMotion || !('IntersectionObserver' in window)) {
-        callback(target);
+    if (state.started) {
+      state.interactive.sceneStatus[0] = 'complete';
+      for (let index = 0; index < state.currentScene; index += 1) {
+        state.interactive.sceneStatus[index] = 'complete';
+      }
+    }
+    Storage.remove('lastScrollPosition');
+    Storage.remove('lastScene');
+    Storage.remove('endingState');
+  }
+
+  /* SCENE RUNTIME */
+  class SceneRuntime {
+    constructor(index) {
+      this.index = index;
+      this.items = new Set();
+      this.animations = new Set();
+      this.groups = new Set();
+      this.paused = false;
+      this.cleared = false;
+    }
+
+    after(delay, callback) {
+      if (this.cleared) return null;
+      const item = {
+        callback,
+        remaining: Math.max(0, delay),
+        startedAt: 0,
+        id: 0
+      };
+      this.items.add(item);
+      this.arm(item);
+      return item;
+    }
+
+    arm(item) {
+      if (this.paused || this.cleared) return;
+      item.startedAt = performance.now();
+      item.id = window.setTimeout(() => {
+        this.items.delete(item);
+        item.id = 0;
+        if (!this.cleared) item.callback();
+      }, item.remaining);
+    }
+
+    track(animation) {
+      if (!animation) return animation;
+      this.animations.add(animation);
+      animation.finished.finally(() => this.animations.delete(animation)).catch(() => {});
+      return animation;
+    }
+
+    pause() {
+      if (this.paused || this.cleared) return;
+      this.paused = true;
+      const now = performance.now();
+      this.items.forEach((item) => {
+        if (!item.id) return;
+        window.clearTimeout(item.id);
+        item.id = 0;
+        item.remaining = Math.max(0, item.remaining - (now - item.startedAt));
+      });
+      this.animations.forEach((animation) => {
+        try {
+          if (animation.playState === 'running') animation.pause();
+        } catch (_error) {}
+      });
+    }
+
+    resume() {
+      if (!this.paused || this.cleared) return;
+      this.paused = false;
+      this.items.forEach((item) => this.arm(item));
+      this.animations.forEach((animation) => {
+        try {
+          if (animation.playState === 'paused') animation.play();
+        } catch (_error) {}
+      });
+    }
+
+    clear() {
+      if (this.cleared) return;
+      this.cleared = true;
+      this.items.forEach((item) => {
+        if (item.id) window.clearTimeout(item.id);
+      });
+      this.items.clear();
+      this.animations.forEach((animation) => {
+        try { animation.cancel(); } catch (_error) {}
+      });
+      this.animations.clear();
+      this.groups.clear();
+    }
+  }
+
+  function currentRuntime(index = state.currentScene) {
+    return state.runtime && state.runtime.index === index ? state.runtime : null;
+  }
+
+  /* AUDIO */
+  const Audio = {
+    element: null,
+    toggle: null,
+    resumeButton: null,
+    attached: false,
+    seekApplied: false,
+    available: true,
+    playPending: false,
+    fadeFrame: 0,
+    savedAt: 0,
+
+    init() {
+      this.element = $('#background-music');
+      this.toggle = $('#audio-toggle');
+      this.resumeButton = $('#resume-audio');
+      if (!this.element || !this.toggle || !this.resumeButton) return;
+
+      this.element.removeAttribute('src');
+      this.element.dataset.src = CONFIG.audioSource;
+      this.element.preload = 'metadata';
+      this.element.loop = true;
+      this.element.volume = 0;
+      this.element.muted = Storage.get(STORAGE_KEYS.musicMuted) === 'true';
+      Storage.set(STORAGE_KEYS.musicMuted, this.element.muted ? 'true' : 'false');
+
+      this.element.addEventListener('timeupdate', () => {
+        const now = performance.now();
+        if (now - this.savedAt > 900) {
+          this.savedAt = now;
+          this.saveTime();
+        }
+      });
+      this.element.addEventListener('playing', () => this.updateControls());
+      this.element.addEventListener('pause', () => this.updateControls());
+      this.element.addEventListener('error', () => {
+        this.available = false;
+        this.cancelFade();
+        this.resumeButton.hidden = true;
+        this.toggle.hidden = true;
+      });
+
+      this.toggle.addEventListener('click', () => this.toggleMute());
+      this.resumeButton.addEventListener('click', () => this.playFromGesture());
+      this.updateControls();
+    },
+
+    attach() {
+      if (!this.element || this.attached || !this.available) return;
+      this.attached = true;
+      this.element.src = this.element.dataset.src || CONFIG.audioSource;
+      this.element.load();
+      const applySavedTime = () => this.applySavedTime();
+      this.element.addEventListener('loadedmetadata', applySavedTime, { once: true });
+    },
+
+    applySavedTime() {
+      if (!this.element || this.seekApplied) return;
+      const saved = Math.max(0, number(Storage.get(STORAGE_KEYS.musicTime), 0));
+      if (!saved) {
+        this.seekApplied = true;
         return;
       }
-
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          observer.unobserve(entry.target);
-          callback(entry.target, entry);
-        });
-      }, {
-        threshold: options.threshold === undefined ? 0.22 : options.threshold,
-        rootMargin: options.rootMargin || '0px 0px -10% 0px'
-      });
-
-      observer.observe(target);
-      state.observers.push(observer);
-    });
-  }
-
-  function ensureResumeAudioButton() {
-    let button = first(['#resume-audio', '[data-resume-audio]']);
-    if (button) return button;
-
-    button = document.createElement('button');
-    button.id = 'resume-audio';
-    button.type = 'button';
-    button.className = 'resume-audio';
-    button.dataset.resumeAudio = '';
-    button.textContent = 'Continuar con música ✦';
-    button.hidden = true;
-    document.body.appendChild(button);
-    return button;
-  }
-
-  function updateAudioControls() {
-    const toggle = state.audioToggle;
-    const resume = state.audioResume;
-
-    if (resume) {
-      const shouldOfferResume = state.entered
-        && state.audioAvailable
-        && (!state.audioHasPlayed || !state.audioPlaying);
-      resume.hidden = !shouldOfferResume;
-      resume.classList.toggle('is-visible', shouldOfferResume);
-    }
-
-    if (!toggle) return;
-    const availableToToggle = state.entered
-      && state.audioAvailable
-      && state.audioHasPlayed
-      && state.audioPlaying;
-    toggle.hidden = !availableToToggle;
-    toggle.classList.toggle('is-visible', availableToToggle);
-
-    const muted = state.audioMuted || Boolean(state.audio && state.audio.muted);
-    const icon = muted ? '🔇' : '🔊';
-    const label = muted ? 'Activar música' : 'Silenciar música';
-    toggle.setAttribute('aria-pressed', String(muted));
-    toggle.setAttribute('aria-label', label);
-    toggle.title = label;
-    toggle.dataset.audioState = muted ? 'muted' : state.audioPlaying ? 'playing' : 'paused';
-
-    const iconNode = $('[data-audio-icon]', toggle);
-    const labelNode = $('[data-audio-label]', toggle);
-    if (iconNode) iconNode.textContent = icon;
-    if (labelNode) labelNode.textContent = muted ? 'Música silenciada' : 'Música activada';
-  }
-
-  function markAudioUnavailable() {
-    state.audioAvailable = false;
-    state.audioPlaying = false;
-    state.audioHasPlayed = false;
-    if (state.audioFadeFrame) {
-      cancelAnimationFrame(state.audioFadeFrame);
-      state.audioFadeFrame = 0;
-    }
-    document.body.classList.add('audio-unavailable');
-    if (state.audioToggle) state.audioToggle.hidden = true;
-    if (state.audioResume) state.audioResume.hidden = true;
-  }
-
-  function ensureAudioSource() {
-    const audio = state.audio;
-    if (!audio || !state.audioAvailable) return false;
-
-    const source = audio.dataset.src || AUDIO_SOURCE;
-    if (audio.getAttribute('src') !== source) {
-      audio.setAttribute('src', source);
+      if (this.element.readyState < 1) return;
       try {
-        audio.load();
-      } catch (_error) {
-        return false;
-      }
-    }
-    return true;
-  }
+        const limit = Number.isFinite(this.element.duration) ? Math.max(0, this.element.duration - .25) : saved;
+        this.element.currentTime = Math.min(saved, limit);
+        this.seekApplied = true;
+      } catch (_error) {}
+    },
 
-  function restoreAudioPosition() {
-    const audio = state.audio;
-    if (!audio || state.savedAudioTime <= 0) return;
-
-    const applyPosition = () => {
-      let target = state.savedAudioTime;
-      if (Number.isFinite(audio.duration) && audio.duration > 0) {
-        target %= audio.duration;
-      }
+    async playFromGesture() {
+      if (!this.element || !this.available || this.playPending) return;
+      this.playPending = true;
+      this.resumeButton.disabled = true;
+      this.attach();
+      this.applySavedTime();
+      this.element.muted = false;
+      Storage.set(STORAGE_KEYS.musicMuted, 'false');
+      this.element.volume = Math.min(this.element.volume, .01);
       try {
-        audio.currentTime = Math.max(0, target);
+        await this.element.play();
+        this.resumeButton.hidden = true;
+        this.fadeToTarget();
       } catch (_error) {
-        // Some engines only allow seeking after metadata has settled.
+        this.resumeButton.hidden = !state.started || !this.available;
+      } finally {
+        this.playPending = false;
+        this.resumeButton.disabled = false;
       }
-    };
+      this.updateControls();
+    },
 
-    if (audio.readyState >= 1) applyPosition();
-    else audio.addEventListener('loadedmetadata', applyPosition, { once: true });
-  }
+    fadeToTarget() {
+      if (!this.element || this.element.paused || this.element.muted) return;
+      this.cancelFade();
+      if (state.reducedMotion) {
+        this.element.volume = CONFIG.audioVolume;
+        return;
+      }
+      const initial = this.element.volume;
+      const startedAt = performance.now();
+      const tick = (now) => {
+        const progress = clamp((now - startedAt) / CONFIG.audioFadeMs, 0, 1);
+        this.element.volume = initial + (CONFIG.audioVolume - initial) * (1 - Math.pow(1 - progress, 3));
+        if (progress < 1 && !document.hidden) this.fadeFrame = requestAnimationFrame(tick);
+        else this.fadeFrame = 0;
+      };
+      this.fadeFrame = requestAnimationFrame(tick);
+    },
 
-  function fadeAudio(target = AUDIO_VOLUME, fadeDuration = AUDIO_FADE_MS) {
-    const audio = state.audio;
-    if (!audio || !state.audioAvailable) return;
-    if (state.audioFadeFrame) cancelAnimationFrame(state.audioFadeFrame);
+    cancelFade() {
+      if (this.fadeFrame) cancelAnimationFrame(this.fadeFrame);
+      this.fadeFrame = 0;
+    },
 
-    if (state.reducedMotion) {
-      audio.volume = clamp(target, 0, 1);
-      state.audioFadeFrame = 0;
-      return;
-    }
-
-    const from = clamp(audio.volume, 0, 1);
-    const to = clamp(target, 0, 1);
-    const began = performance.now();
-
-    const tick = (now) => {
-      const progress = clamp((now - began) / Math.max(1, fadeDuration), 0, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      audio.volume = from + (to - from) * eased;
-      if (progress < 1 && !audio.paused) {
-        state.audioFadeFrame = requestAnimationFrame(tick);
+    async toggleMute() {
+      if (!this.element || !this.available) return;
+      if (this.element.muted) {
+        this.element.muted = false;
+        Storage.set(STORAGE_KEYS.musicMuted, 'false');
+        if (this.element.paused) await this.playFromGesture();
+        else this.fadeToTarget();
       } else {
-        state.audioFadeFrame = 0;
+        this.element.muted = true;
+        Storage.set(STORAGE_KEYS.musicMuted, 'true');
+        this.resumeButton.hidden = true;
       }
-    };
+      this.updateControls();
+    },
 
-    state.audioFadeFrame = requestAnimationFrame(tick);
-  }
+    updateControls() {
+      if (!this.element || !this.toggle) return;
+      const muted = this.element.muted;
+      this.toggle.hidden = !state.started || !this.available;
+      this.toggle.setAttribute('aria-pressed', muted ? 'true' : 'false');
+      this.toggle.setAttribute('aria-label', muted ? 'Activar música' : 'Silenciar música');
+      const icon = $('[data-audio-icon]', this.toggle);
+      const label = $('[data-audio-label]', this.toggle);
+      if (icon) icon.textContent = muted ? '×' : '♪';
+      if (label) label.textContent = muted ? 'Música silenciada' : 'Música activada';
+    },
 
-  function startAudio() {
-    const audio = state.audio;
-    if (!audio || !state.audioAvailable || !ensureAudioSource()) {
-      updateAudioControls();
-      return;
+    offerResume() {
+      if (!this.element || !this.resumeButton || !state.started || this.element.muted || !this.available || this.playPending) return;
+      if (this.element.paused) this.resumeButton.hidden = false;
+    },
+
+    saveTime() {
+      if (!this.element || !Number.isFinite(this.element.currentTime)) return;
+      if (!this.attached && this.element.currentTime === 0 && Storage.get(STORAGE_KEYS.musicTime) !== null) return;
+      Storage.set(STORAGE_KEYS.musicTime, Math.max(0, this.element.currentTime).toFixed(2));
+    },
+
+    suspend() {
+      this.saveTime();
+      this.cancelFade();
+    },
+
+    resume() {
+      if (this.element && !this.element.paused && !this.element.muted) this.fadeToTarget();
+      else this.offerResume();
     }
+  };
 
-    restoreAudioPosition();
-    audio.muted = false;
-    state.audioMuted = false;
-    audio.volume = 0;
+  /* AMBIENT UNIVERSE */
+  const Ambient = {
+    field: null,
+    shootingStar: null,
+    shootingTimer: 0,
+    shootingResetTimer: 0,
+    orientationFrame: 0,
+    suspended: false,
 
-    let playback;
-    try {
-      // Kept synchronous with the Enter/resume gesture for mobile policies.
-      playback = audio.play();
-    } catch (_error) {
-      state.audioPlaying = false;
-      updateAudioControls();
-      return;
-    }
+    init() {
+      this.field = $('#star-field');
+      this.shootingStar = $('#ambient-shooting-star');
+      this.syncStars();
+      this.scheduleShootingStar();
+      this.initOrientation();
+      window.addEventListener('resize', () => {
+        this.syncStars();
+        if (state.currentScene === 6 && state.interactive.future) finishFuture();
+      }, { passive: true });
+    },
 
-    const onPlaying = () => {
-      state.audioHasPlayed = true;
-      state.audioPlaying = true;
-      document.body.classList.add('audio-playing');
-      document.body.classList.remove('audio-needs-gesture');
-      updateAudioControls();
-      fadeAudio(AUDIO_VOLUME, AUDIO_FADE_MS);
-    };
+    starTarget() {
+      const shortSide = Math.min(window.innerWidth, window.innerHeight);
+      if (state.lowPerformance || shortSide <= 360) return 22;
+      if (window.innerWidth <= 600 || shortSide <= 430) return 30;
+      return 40;
+    },
 
-    if (playback && typeof playback.then === 'function') {
-      playback.then(onPlaying).catch(() => {
-        state.audioPlaying = false;
-        document.body.classList.add('audio-needs-gesture');
-        updateAudioControls();
-      });
-    } else {
-      onPlaying();
-    }
-  }
+    syncStars() {
+      if (!this.field) return;
+      const target = this.starTarget();
+      let stars = $$('[data-ambient-star]', this.field);
+      while (stars.length > target) stars.pop().remove();
+      if (stars.length >= target) return;
 
-  function restoreAudio() {
-    state.savedAudioTime = Math.max(0, number(storageRead(STORAGE_KEYS.music), state.savedAudioTime));
-    // Deliberately do not attach src or call play here. A restored page only
-    // offers one quiet gesture-based control.
-    state.audioHasPlayed = false;
-    state.audioPlaying = false;
-    updateAudioControls();
-  }
-
-  function initAudio() {
-    const audio = document.querySelector('#background-music');
-    if (!audio) return;
-
-    // Remove any legacy nested source so only the declared data-src is used.
-    $$('source', audio).forEach((source) => source.remove());
-    audio.removeAttribute('src');
-    audio.dataset.src = AUDIO_SOURCE;
-    audio.preload = 'metadata';
-    audio.loop = true;
-    audio.setAttribute('playsinline', '');
-    audio.volume = 0;
-
-    state.audio = audio;
-    state.audioToggle = first(['#audio-toggle', '[data-audio-toggle]', '.audio-toggle']);
-    state.audioResume = ensureResumeAudioButton();
-
-    audio.addEventListener('error', markAudioUnavailable);
-    audio.addEventListener('playing', () => {
-      state.audioPlaying = true;
-      state.audioHasPlayed = true;
-      updateAudioControls();
-    });
-    audio.addEventListener('pause', () => {
-      state.audioPlaying = false;
-      if (state.entered && !document.hidden && state.audioHasPlayed) {
-        document.body.classList.add('audio-needs-gesture');
-      }
-      updateAudioControls();
-    });
-    audio.addEventListener('timeupdate', () => {
-      const now = Date.now();
-      if (now - state.audioSaveAt < 3000 || !Number.isFinite(audio.currentTime)) return;
-      state.audioSaveAt = now;
-      state.savedAudioTime = audio.currentTime;
-      storageWrite(STORAGE_KEYS.music, audio.currentTime.toFixed(2));
-    });
-
-    if (state.audioToggle) {
-      state.audioToggle.type = 'button';
-      state.audioToggle.addEventListener('click', () => {
-        if (!state.audioAvailable) return;
-        if (!state.audioHasPlayed || audio.paused) {
-          startAudio();
-          return;
-        }
-        state.audioMuted = !state.audioMuted;
-        audio.muted = state.audioMuted;
-        updateAudioControls();
-      });
-    }
-
-    state.audioResume.type = 'button';
-    state.audioResume.addEventListener('click', startAudio);
-    restoreAudio();
-  }
-
-  function targetStarCount() {
-    if (Math.min(window.innerWidth, window.innerHeight) <= 480) return 48;
-    if (window.innerWidth <= 900) return 60;
-    return 72;
-  }
-
-  function createBackgroundStar(index) {
-    const star = document.createElement('span');
-    const depthIndex = index % 3;
-    const size = depthIndex === 0
-      ? .55 + seeded(index, 2) * .65
-      : depthIndex === 1
-        ? .9 + seeded(index, 3) * 1.05
-        : 1.35 + seeded(index, 4) * 1.5;
-    const opacity = .2 + seeded(index, 5) * (depthIndex === 2 ? .68 : .48);
-
-    star.className = 'star star--' + ['far', 'middle', 'near'][depthIndex];
-    star.dataset.generatedStar = 'true';
-    star.dataset.depth = String(depthIndex + 1);
-    star.setAttribute('aria-hidden', 'true');
-    star.style.left = (seeded(index, 6) * 100).toFixed(3) + '%';
-    star.style.top = (seeded(index, 7) * 100).toFixed(3) + '%';
-    star.style.setProperty('--size', size.toFixed(2) + 'px');
-    star.style.setProperty('--opacity', opacity.toFixed(2));
-    star.style.setProperty('--twinkle-duration', (5 + seeded(index, 8) * 8).toFixed(2) + 's');
-    star.style.setProperty('--twinkle-delay', (-seeded(index, 9) * 9).toFixed(2) + 's');
-    star.style.setProperty('--drift', (1 + seeded(index, 10) * 7).toFixed(2) + 'px');
-    return star;
-  }
-
-  function syncBackgroundStars(container) {
-    if (!container) return;
-    const expected = targetStarCount();
-    const current = $$('[data-generated-star]', container);
-
-    if (current.length > expected) {
-      current.slice(expected).forEach((star) => star.remove());
-      return;
-    }
-
-    if (current.length < expected) {
       const fragment = document.createDocumentFragment();
-      for (let index = current.length; index < expected; index += 1) {
-        fragment.appendChild(createBackgroundStar(index));
+      for (let index = stars.length; index < target; index += 1) {
+        const star = document.createElement('span');
+        const size = .9 + seeded(index, 2) * 2.15;
+        star.className = 'ambient-star';
+        star.dataset.ambientStar = '';
+        star.style.left = (2 + seeded(index, 3) * 96).toFixed(2) + '%';
+        star.style.top = (2 + seeded(index, 4) * 96).toFixed(2) + '%';
+        star.style.setProperty('--star-size', size.toFixed(2) + 'px');
+        star.style.setProperty('--star-low', (.08 + seeded(index, 5) * .18).toFixed(2));
+        star.style.setProperty('--star-high', (.38 + seeded(index, 6) * .5).toFixed(2));
+        star.style.setProperty('--star-duration', (4.8 + seeded(index, 7) * 5.2).toFixed(2) + 's');
+        star.style.setProperty('--star-delay', (-seeded(index, 8) * 7).toFixed(2) + 's');
+        fragment.appendChild(star);
       }
-      container.appendChild(fragment);
+      this.field.appendChild(fragment);
+    },
+
+    scheduleShootingStar() {
+      if (!state.started || state.reducedMotion || this.suspended || !this.shootingStar) return;
+      window.clearTimeout(this.shootingTimer);
+      const delay = CONFIG.shootingMinMs + Math.random() * (CONFIG.shootingMaxMs - CONFIG.shootingMinMs);
+      this.shootingTimer = window.setTimeout(() => {
+        this.triggerShootingStar();
+        this.scheduleShootingStar();
+      }, delay);
+    },
+
+    triggerShootingStar() {
+      if (!this.shootingStar || state.reducedMotion || this.shootingStar.classList.contains('is-active')) return;
+      this.shootingStar.style.setProperty('--shoot-y', (10 + Math.random() * 42).toFixed(1) + '%');
+      this.shootingStar.classList.remove('is-active');
+      void this.shootingStar.offsetWidth;
+      this.shootingStar.classList.add('is-active');
+      window.clearTimeout(this.shootingResetTimer);
+      this.shootingResetTimer = window.setTimeout(() => this.shootingStar.classList.remove('is-active'), 1400);
+    },
+
+    initOrientation() {
+      if (state.lowPerformance || state.reducedMotion || typeof window.DeviceOrientationEvent === 'undefined') return;
+      if (typeof window.DeviceOrientationEvent.requestPermission === 'function') return;
+      window.addEventListener('deviceorientation', (event) => {
+        if (this.orientationFrame || this.suspended) return;
+        const gamma = number(event.gamma, 0);
+        const beta = number(event.beta, 0);
+        this.orientationFrame = requestAnimationFrame(() => {
+          this.orientationFrame = 0;
+          const universe = $('#ambient-universe');
+          if (!universe) return;
+          universe.style.setProperty('--parallax-x', clamp(gamma / 15, -3, 3).toFixed(2) + 'px');
+          universe.style.setProperty('--parallax-y', clamp((beta - 45) / 25, -3, 3).toFixed(2) + 'px');
+        });
+      }, { passive: true });
+    },
+
+    pause() {
+      if (this.suspended) return;
+      this.suspended = true;
+      window.clearTimeout(this.shootingTimer);
+      window.clearTimeout(this.shootingResetTimer);
+      this.shootingTimer = 0;
+      this.shootingResetTimer = 0;
+      this.shootingStar?.classList.remove('is-active');
+      if (this.orientationFrame) cancelAnimationFrame(this.orientationFrame);
+      this.orientationFrame = 0;
+    },
+
+    resume() {
+      if (state.reducedMotion || document.hidden) return;
+      this.suspended = false;
+      this.scheduleShootingStar();
+    }
+  };
+
+  /* NARRATIVE TIMELINE */
+  function timelineKey(timeline) {
+    const scene = timeline.closest('[data-scene-index]');
+    return (scene?.dataset.sceneIndex || '0') + ':' + (timeline.dataset.timeline || 'main');
+  }
+
+  function timelineBeats(timeline) {
+    return $$(':scope > [data-beat]', timeline);
+  }
+
+  function storedRevealCount(timeline) {
+    return clamp(Math.trunc(number(state.interactive.reveals[timelineKey(timeline)], 0)), 0, timelineBeats(timeline).length);
+  }
+
+  function saveRevealCount(timeline, count) {
+    state.interactive.reveals[timelineKey(timeline)] = count;
+    Storage.saveInteractive();
+  }
+
+  function renderTimeline(timeline, count, applyCues = false) {
+    const beats = timelineBeats(timeline);
+    const current = count - 1;
+    timeline.classList.toggle('has-history', current > 0);
+
+    beats.forEach((beat, index) => {
+      const isRevealed = index < count;
+      const distance = current - index;
+      beat.hidden = !isRevealed;
+      beat.classList.toggle('is-revealed', isRevealed);
+      beat.classList.toggle('is-current-line', isRevealed && distance === 0);
+      beat.classList.toggle('is-past-line', isRevealed && distance > 0);
+      beat.classList.toggle('history-1', isRevealed && distance === 1);
+      beat.classList.toggle('history-2', false);
+      beat.classList.toggle('is-retired-line', isRevealed && distance > 1);
+      beat.setAttribute('aria-hidden', isRevealed && distance <= 1 ? 'false' : 'true');
+      if (applyCues && isRevealed && beat.dataset.cue) handleCue(beat.dataset.cue, true);
+    });
+  }
+
+  function revealBeat(timeline, index) {
+    const count = Math.max(storedRevealCount(timeline), index + 1);
+    saveRevealCount(timeline, count);
+    renderTimeline(timeline, count);
+    const beat = timelineBeats(timeline)[index];
+    if (beat?.dataset.cue) handleCue(beat.dataset.cue, false);
+  }
+
+  function revealEntireTimeline(timeline) {
+    const count = timelineBeats(timeline).length;
+    saveRevealCount(timeline, count);
+    renderTimeline(timeline, count, true);
+  }
+
+  function playTimeline(timeline, onComplete = () => {}) {
+    const runtime = currentRuntime();
+    if (!timeline || !runtime) return;
+    const key = timelineKey(timeline);
+    if (runtime.groups.has(key)) return;
+    runtime.groups.add(key);
+
+    const beats = timelineBeats(timeline);
+    const count = storedRevealCount(timeline);
+    renderTimeline(timeline, count, true);
+    if (!beats.length) {
+      onComplete();
+      return;
+    }
+
+    let cursor = 0;
+    let previousAt = count > 0 ? number(beats[count - 1]?.dataset.at, 0) : 0;
+    for (let index = count; index < beats.length; index += 1) {
+      const at = number(beats[index].dataset.at, previousAt);
+      let gap = at - previousAt;
+      if (index === count && count > 0) gap = clamp(gap, 320, 720);
+      if (index === 0) gap = at;
+      cursor += duration(Math.max(0, gap));
+      runtime.after(cursor, () => revealBeat(timeline, index));
+      previousAt = at;
+    }
+
+    const finalAt = number(beats[beats.length - 1].dataset.at, 0);
+    const completeAt = Math.max(finalAt, number(timeline.dataset.completeAt, finalAt + 900));
+    const tail = count >= beats.length ? 180 : Math.max(120, completeAt - finalAt);
+    runtime.after(cursor + duration(tail), onComplete);
+  }
+
+  function handleCue(cue, restoring) {
+    const scene = SceneController.activeScene();
+    if (!scene) return;
+    if (cue === 'love') {
+      scene.classList.add('love-is-visible');
+      document.body.classList.add('love-is-visible');
+    }
+    if (cue === 'future') animateFuture(restoring);
+    if (cue === 'andrea-light') $('#andrea-stars')?.classList.add('is-illuminated');
+    if (cue === 'joke' && !restoring) {
+      currentRuntime()?.after(duration(720), () => Ambient.triggerShootingStar());
+    }
+    if (cue === 'constellation') {
+      scene.classList.add('constellation-is-visible');
+      updateConstellation();
     }
   }
 
-  function launchShootingStar(container) {
-    if (!container || state.reducedMotion || document.hidden || !state.entered) return;
-    if ($('[data-generated-shooting-star]', container)) return;
+  function showSceneAction(scene) {
+    const action = scene?.matches('[data-scene-index="0"]') ? $('[data-enter]', scene) : $('[data-scene-next]', scene);
+    if (!action) return;
+    action.hidden = false;
+    const reveal = () => action.classList.add('is-ready');
+    const runtime = currentRuntime(number(scene.dataset.sceneIndex, state.currentScene));
+    if (runtime) runtime.after(16, reveal);
+    else reveal();
+    if (scene.dataset.sceneIndex === '0' && state.started) action.firstChild.textContent = 'Continuar ';
+  }
 
-    const star = document.createElement('span');
-    const distanceX = Math.max(window.innerWidth * .82, 330);
-    const distanceY = 115 + seeded(Date.now() % 103, 4) * 150;
-    const time = 1400 + seeded(Date.now() % 89, 7) * 650;
-
-    star.className = 'shooting-star';
-    star.dataset.generatedShootingStar = 'true';
-    star.setAttribute('aria-hidden', 'true');
-    star.style.left = (-8 + seeded(Date.now() % 71, 2) * 38).toFixed(2) + '%';
-    star.style.top = (5 + seeded(Date.now() % 67, 5) * 37).toFixed(2) + '%';
-    container.appendChild(star);
-
-    if (!state.reducedMotion && typeof star.animate === 'function') {
-      const animation = star.animate([
-        { opacity: 0, transform: 'translate3d(0,0,0) rotate(-18deg) scaleX(.35)' },
-        { opacity: .82, offset: .15 },
-        { opacity: 0, transform: 'translate3d(' + distanceX.toFixed(0) + 'px,' + distanceY.toFixed(0) + 'px,0) rotate(-18deg) scaleX(1)' }
-      ], {
-        duration: time,
-        easing: 'cubic-bezier(.2,.65,.3,1)',
-        fill: 'forwards'
-      });
-      animation.finished.catch(() => {}).finally(() => star.remove());
+  function completeScene(index) {
+    state.interactive.sceneStatus[index] = 'complete';
+    if (index === 9) {
+      state.interactive.final = true;
+      SceneController.scenes[index].classList.add('is-complete');
     } else {
-      setTimer(() => star.remove(), time);
+      showSceneAction(SceneController.scenes[index]);
     }
+    Storage.saveInteractive();
   }
 
-  function scheduleShootingStars(container, soon = false) {
-    clearTimer(state.shootingTimer);
-    state.shootingTimer = 0;
-    if (!container || !state.entered || document.hidden || state.reducedMotion) return;
-
-    state.shootingActive = true;
-    state.shootingTimer = setTimer(() => {
-      state.shootingTimer = 0;
-      launchShootingStar(container);
-      scheduleShootingStars(container, false);
-    }, soon ? 5200 : 10000 + Math.random() * 8000);
-  }
-
-  function createStars() {
-    const container = first(['#star-field', '[data-star-field]', '.starfield']);
-    if (!container) return;
-    syncBackgroundStars(container);
-
-    window.addEventListener('resize', () => {
-      clearTimer(state.resizeTimer);
-      state.resizeTimer = setTimer(() => {
-        state.resizeTimer = 0;
-        syncBackgroundStars(container);
-      }, 180);
+  /* TAP FEEDBACK */
+  function initTapFeedback() {
+    document.addEventListener('pointerdown', (event) => {
+      const button = event.target.closest('button');
+      if (!button || button.disabled) return;
+      button.classList.add('is-tapped');
+      const rectangle = button.getBoundingClientRect();
+      const glow = document.createElement('span');
+      glow.className = 'tap-glow';
+      glow.style.left = (event.clientX - rectangle.left) + 'px';
+      glow.style.top = (event.clientY - rectangle.top) + 'px';
+      glow.setAttribute('aria-hidden', 'true');
+      button.appendChild(glow);
+      window.setTimeout(() => {
+        button.classList.remove('is-tapped');
+        glow.remove();
+      }, 460);
     }, { passive: true });
-
-    waitForExperience(() => scheduleShootingStars(container, true));
   }
 
-  function initScrollAnimations() {
-    const revealNodes = unique(['[data-reveal]', '.reveal-text', '.star-reveal']);
-
-    waitForExperience(() => {
-      const candidates = revealNodes.filter((node) => !node.closest('[hidden]'));
-      if (state.reducedMotion || !('IntersectionObserver' in window)) {
-        candidates.forEach(revealImmediately);
-      } else {
-        const revealObserver = new IntersectionObserver((entries) => {
-          entries.forEach((entry) => {
-            if (!entry.isIntersecting) return;
-            revealObserver.unobserve(entry.target);
-            revealNode(entry.target, number(entry.target.dataset.delay, 0));
-          });
-        }, {
-          threshold: .14,
-          rootMargin: '0px 0px -8% 0px'
-        });
-
-        candidates.forEach((node) => revealObserver.observe(node));
-        state.observers.push(revealObserver);
-      }
-
-      const scenes = unique(['[data-scene]', '.scene']);
-      if (!scenes.length || !('IntersectionObserver' in window)) return;
-
-      const sceneObserver = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          state.sceneRatios.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
-          entry.target.classList.toggle('is-current', entry.isIntersecting && entry.intersectionRatio >= .12);
-        });
-
-        let bestScene = null;
-        let bestRatio = 0;
-        state.sceneRatios.forEach((ratio, scene) => {
-          if (ratio > bestRatio) {
-            bestRatio = ratio;
-            bestScene = scene;
-          }
-        });
-
-        if (bestScene && bestRatio > 0) {
-          state.currentScene = bestScene.dataset.scene || bestScene.id || state.currentScene;
-          document.body.classList.toggle('andrea-is-current', bestScene.id === 'scene-10');
-          queueExperienceSave();
-        }
-      }, { threshold: [0, .12, .25, .5, .75] });
-
-      scenes.forEach((scene) => sceneObserver.observe(scene));
-      state.observers.push(sceneObserver);
-    });
-  }
-
-  function applyExpandedPanel(button, panel, className) {
-    if (button) {
-      button.setAttribute('aria-expanded', 'true');
-      button.classList.add('is-complete');
-      button.disabled = true;
-    }
-    if (!panel) return;
-    show(panel);
-    panel.classList.add('is-active');
-    if (className) panel.classList.add(className);
-    unique(['[data-reveal]', '[data-insight-word]', 'p'], panel).forEach(revealImmediately);
-  }
-
-  function initInitiativeMoment() {
-    const button = document.querySelector('#insight-star');
-    const panel = document.querySelector('#insight-reveal');
-    if (!button || !panel) return;
-
-    button.type = 'button';
-    button.setAttribute('aria-expanded', 'false');
-
-    if (state.interactive.insight) {
-      applyExpandedPanel(button, panel, 'is-understood');
-      return;
-    }
-
-    button.addEventListener('click', () => {
-      if (state.interactive.insight) return;
-      state.interactive.insight = true;
-      button.setAttribute('aria-expanded', 'true');
-      button.classList.add('is-lit', 'is-complete');
-      button.disabled = true;
-      show(panel);
-      panel.classList.add('is-active', 'is-understood');
-
-      const words = unique(['[data-insight-word]'], panel);
-      const copy = unique(['[data-reveal]', 'p'], panel).filter((node) => !words.includes(node));
-      revealSequence(words, duration(145, 0), duration(220, 0));
-      revealSequence(copy, duration(260, 0), duration(900, 0));
-      saveInteractiveState();
-    });
-  }
-
-  function initProofMoment() {
-    const button = first(['#proof-button', '[data-proof-button]']);
-    const panel = first(['#proof-reveal', '[data-proof-reveal]']);
-    if (!button || !panel) return;
-
-    button.type = 'button';
-    button.setAttribute('aria-expanded', 'false');
-
-    if (state.interactive.proof) {
-      applyExpandedPanel(button, panel, 'is-proven');
-      return;
-    }
-
-    button.addEventListener('click', () => {
-      if (state.interactive.proof) return;
-      state.interactive.proof = true;
-      button.disabled = true;
-      button.setAttribute('aria-expanded', 'true');
-      button.classList.add('is-complete');
-      show(panel);
-      panel.classList.add('is-active', 'is-proven');
-      revealChildren(panel, 420, 120);
-      saveInteractiveState();
-    });
-  }
-
+  /* SUNFLOWER */
   function svgElement(name, attributes = {}) {
     const node = document.createElementNS('http://www.w3.org/2000/svg', name);
     Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
@@ -820,11 +746,9 @@
     const radians = angle * Math.PI / 180;
     const radialX = Math.cos(radians);
     const radialY = Math.sin(radians);
-    const tangentX = -radialY;
-    const tangentY = radialX;
     return [
-      centerX + radialX * radial + tangentX * tangent,
-      centerY + radialY * radial + tangentY * tangent
+      centerX + radialX * radial - radialY * tangent,
+      centerY + radialY * radial + radialX * tangent
     ];
   }
 
@@ -838,7 +762,6 @@
     const length = 77 + seeded(index, 32) * 22;
     const width = 9.5 + seeded(index, 33) * 6;
     const lean = (seeded(index, 34) - .5) * 8;
-
     const startLeft = sunflowerPoint(centerX, centerY, angle, 21, -4.5);
     const controlLeftOne = sunflowerPoint(centerX, centerY, angle, 43, -width);
     const controlLeftTwo = sunflowerPoint(centerX, centerY, angle, length * .76, -width * .6 + lean);
@@ -846,7 +769,6 @@
     const controlRightTwo = sunflowerPoint(centerX, centerY, angle, length * .7, width * .58 + lean);
     const controlRightOne = sunflowerPoint(centerX, centerY, angle, 41, width);
     const startRight = sunflowerPoint(centerX, centerY, angle, 21, 4.5);
-
     return 'M ' + pathPoint(startLeft)
       + ' C ' + pathPoint(controlLeftOne) + ', ' + pathPoint(controlLeftTwo) + ', ' + pathPoint(tip)
       + ' C ' + pathPoint(controlRightTwo) + ', ' + pathPoint(controlRightOne) + ', ' + pathPoint(startRight)
@@ -860,12 +782,11 @@
       'aria-label': miniature ? 'Un pequeño girasol entre las estrellas' : 'Un girasol dorado creciendo entre las estrellas',
       preserveAspectRatio: 'xMidYMid meet'
     });
-    svg.classList.add('cosmic-sunflower__svg', 'sunflower-svg');
+    svg.classList.add('sunflower-svg');
     if (miniature) svg.classList.add('sunflower-svg--miniature');
 
     const petals = svgElement('g', { class: 'sunflower-petals', 'aria-hidden': 'true' });
     const palette = ['#d99e32', '#e7b64c', '#c98728', '#efc663', '#dca63c', '#bc7924'];
-
     for (let index = 0; index < 24; index += 1) {
       const petal = svgElement('path', {
         d: createOrganicPetalPath(index, 160, 151),
@@ -874,43 +795,23 @@
         'data-petal-index': index,
         opacity: (.72 + seeded(index, 35) * .24).toFixed(2)
       });
-      petal.style.setProperty('--petal-delay', (620 + index * 82) + 'ms');
-      petal.style.setProperty('--petal-scale', (.94 + seeded(index, 36) * .1).toFixed(3));
-      petal.style.transformBox = 'fill-box';
-      petal.style.transformOrigin = 'center bottom';
       petals.appendChild(petal);
     }
     svg.appendChild(petals);
 
-    const origin = svgElement('circle', {
-      cx: 160,
-      cy: 151,
-      r: 5,
-      class: 'sunflower-origin',
-      fill: '#e7b64c',
-      'aria-hidden': 'true'
-    });
-    svg.appendChild(origin);
-
+    const originPoints = Array.from({ length: 10 }, (_item, index) => {
+      const angle = -Math.PI / 2 + index * Math.PI / 5;
+      const radius = index % 2 ? 3.1 : 7;
+      return (160 + Math.cos(angle) * radius).toFixed(2) + ',' + (151 + Math.sin(angle) * radius).toFixed(2);
+    }).join(' ');
+    svg.appendChild(svgElement('polygon', {
+      points: originPoints, class: 'sunflower-origin', fill: '#e7b64c', 'aria-hidden': 'true'
+    }));
     const center = svgElement('g', { class: 'sunflower-center-art', 'aria-hidden': 'true' });
     center.style.transformBox = 'fill-box';
     center.style.transformOrigin = 'center';
-    center.appendChild(svgElement('circle', {
-      cx: 160,
-      cy: 151,
-      r: 35,
-      fill: '#3d281d',
-      stroke: '#a86f28',
-      'stroke-width': 2.2
-    }));
-    center.appendChild(svgElement('circle', {
-      cx: 160,
-      cy: 151,
-      r: 29,
-      fill: '#55331e',
-      opacity: .96
-    }));
-
+    center.appendChild(svgElement('circle', { cx: 160, cy: 151, r: 35, fill: '#3d281d', stroke: '#a86f28', 'stroke-width': 2.2 }));
+    center.appendChild(svgElement('circle', { cx: 160, cy: 151, r: 29, fill: '#55331e', opacity: .96 }));
     for (let index = 0; index < 58; index += 1) {
       const radius = 3.55 * Math.sqrt(index);
       const angle = index * 137.508 * Math.PI / 180;
@@ -926,1140 +827,950 @@
     return svg;
   }
 
-  function animateSunflowerBloom(wrapper, svg) {
-    if (!wrapper || !svg || wrapper.dataset.bloomed === 'true') return;
-    wrapper.dataset.bloomed = 'true';
-    wrapper.classList.add('is-blooming');
+  function ensureSunflowerMemory() {
+    const mount = $('#sunflower-memory');
+    if (mount && !$('.sunflower-svg', mount)) mount.appendChild(createSunflowerSvg(true));
+  }
 
-    const origin = $('.sunflower-origin', svg);
-    const center = $('.sunflower-center-art', svg);
-    const petals = $$('.sunflower-petal--visual', svg);
+  function buildSunflowerPetals() {
+    const wrapper = $('#cosmic-sunflower');
+    const hitLayer = $('[data-sunflower-petal-hits]', wrapper);
+    const wordsLayer = $('[data-sunflower-words]', wrapper);
+    if (!wrapper || !hitLayer || !wordsLayer || hitLayer.children.length) return;
+    const selectedPetals = [0, 3, 6, 9, 12, 15, 18, 21];
 
-    if (state.reducedMotion || typeof svg.animate !== 'function') {
-      [origin, center].concat(petals).filter(Boolean).forEach((node) => {
-        node.style.opacity = '1';
-        node.style.transform = 'none';
-      });
-      wrapper.classList.add('is-bloomed');
-      enableSunflowerPetals(wrapper);
-      enableSunflowerCenter(wrapper);
-      return;
-    }
+    selectedPetals.forEach((petalIndex, index) => {
+      const angle = -90 + petalIndex * 15;
+      const radians = angle * Math.PI / 180;
+      const x = 50 + Math.cos(radians) * 31;
+      const y = 47.2 + Math.sin(radians) * 31;
+      const button = document.createElement('button');
+      const spark = document.createElement('span');
+      button.type = 'button';
+      button.className = 'sunflower-petal-hit';
+      button.dataset.sunflowerPetal = '';
+      button.dataset.index = String(index);
+      button.setAttribute('aria-label', 'Revelar: ' + SUNFLOWER_WORDS[index]);
+      button.setAttribute('aria-pressed', 'false');
+      button.disabled = true;
+      button.style.left = x.toFixed(2) + '%';
+      button.style.top = y.toFixed(2) + '%';
+      spark.className = 'sunflower-petal-hit__spark';
+      spark.style.setProperty('--petal-angle', angle + 'deg');
+      spark.setAttribute('aria-hidden', 'true');
+      button.appendChild(spark);
+      hitLayer.appendChild(button);
 
-    if (origin) {
-      origin.animate([
-        { opacity: 0, transform: 'scale(.15)' },
-        { opacity: 1, transform: 'scale(1)' }
-      ], { duration: 900, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' });
-    }
+      const wordRadius = index % 2 ? 41 : 39;
+      const word = document.createElement('span');
+      word.className = 'sunflower-word';
+      word.dataset.sunflowerWord = '';
+      word.dataset.index = String(index);
+      word.textContent = SUNFLOWER_WORDS[index];
+      word.hidden = true;
+      word.style.left = (50 + Math.cos(radians) * wordRadius).toFixed(2) + '%';
+      word.style.top = (47.2 + Math.sin(radians) * wordRadius).toFixed(2) + '%';
+      wordsLayer.appendChild(word);
 
-    if (center) {
-      center.animate([
-        { opacity: 0, transform: 'scale(.08)' },
-        { opacity: 1, transform: 'scale(1)' }
-      ], { duration: 1450, delay: 420, easing: 'cubic-bezier(.16,.72,.24,1)', fill: 'both' });
-    }
-
-    petals.forEach((petal, index) => {
-      petal.animate([
-        { opacity: 0, transform: 'scale(.08) rotate(' + ((index % 2 ? 1 : -1) * 3) + 'deg)' },
-        { opacity: number(petal.getAttribute('opacity'), .9), transform: 'scale(1) rotate(0deg)' }
-      ], {
-        duration: 980 + seeded(index, 41) * 320,
-        delay: 760 + index * 86,
-        easing: 'cubic-bezier(.17,.68,.2,1)',
-        fill: 'both'
-      });
+      button.addEventListener('click', () => chooseSunflowerPetal(button, word, index));
     });
-
-    setTimer(() => {
-      wrapper.classList.add('is-bloomed');
-      enableSunflowerPetals(wrapper);
-    }, 1700);
-
-    clearTimer(state.sunflowerUnlockTimer);
-    state.sunflowerUnlockTimer = setTimer(() => {
-      state.sunflowerUnlockTimer = 0;
-      enableSunflowerCenter(wrapper);
-    }, 4800);
   }
 
-  function enableSunflowerPetals(wrapper) {
-    if (!wrapper) return;
-    $$('[data-sunflower-petal]', wrapper).forEach((button) => {
-      button.disabled = false;
-      button.removeAttribute('aria-hidden');
-    });
-    wrapper.classList.add('petals-are-ready');
-  }
-
-  function enableSunflowerCenter(wrapper) {
-    const centerButton = first(['#sunflower-center', '[data-sunflower-center]'], wrapper || document);
-    const instruction = first(['#sunflower-instruction', '[data-sunflower-instruction]'], wrapper || document);
-    if (!centerButton || state.interactive.sunflowerCenter) return;
-
-    show(centerButton);
-    centerButton.disabled = false;
-    centerButton.setAttribute('aria-expanded', 'false');
-    centerButton.classList.add('is-ready');
-    if (instruction) {
-      show(instruction);
-      instruction.classList.add('is-visible');
-    }
-    if (wrapper) wrapper.classList.add('center-is-ready');
-  }
-
-  function revealSunflowerWord(wrapper, button, wordNode, announce, index) {
-    if (!wrapper || !button || !wordNode) return;
+  function chooseSunflowerPetal(button, word, index) {
     if (!state.interactive.sunflowerPetals.includes(index)) {
       state.interactive.sunflowerPetals.push(index);
       state.interactive.sunflowerPetals.sort((a, b) => a - b);
     }
-    button.classList.add('is-chosen');
+    button.classList.add('is-chosen', 'is-pulsing');
     button.setAttribute('aria-pressed', 'true');
-    show(wordNode);
-    wordNode.classList.add('is-visible', 'revealed');
-    if (announce) announce.textContent = SUNFLOWER_WORDS[index];
-    wrapper.classList.add('has-explored-petals');
-    saveInteractiveState();
+    word.hidden = false;
+    const runtime = currentRuntime(4);
+    if (runtime) {
+      runtime.after(16, () => word.classList.add('is-visible'));
+      runtime.after(340, () => button.classList.remove('is-pulsing'));
+    } else {
+      word.classList.add('is-visible');
+      button.classList.remove('is-pulsing');
+    }
+    const announcer = $('#sunflower-word-live');
+    if (announcer) announcer.textContent = SUNFLOWER_WORDS[index];
+    if (state.interactive.sunflowerPetals.length >= 2) enableSunflowerCenter();
+    Storage.saveInteractive();
   }
 
-  function initSunflowerPetals(wrapper, mount) {
+  function enableSunflowerPetals() {
+    const wrapper = $('#cosmic-sunflower');
+    if (!wrapper) return;
+    wrapper.classList.add('petals-are-ready');
+    $$('[data-sunflower-petal]', wrapper).forEach((button) => { button.disabled = false; });
+    const instruction = $('#sunflower-explore-instruction');
+    if (instruction) instruction.hidden = false;
+  }
+
+  function enableSunflowerCenter() {
+    if (state.interactive.sunflowerCenter) return;
+    const center = $('#sunflower-center');
+    const instruction = $('#sunflower-center-instruction');
+    if (!center) return;
+    center.hidden = false;
+    center.disabled = false;
+    center.classList.add('is-ready');
+    if (instruction) instruction.hidden = false;
+  }
+
+  function finishSunflowerBloom() {
+    const wrapper = $('#cosmic-sunflower');
+    if (!wrapper) return;
+    $$('.sunflower-petal--visual, .sunflower-center-art, .sunflower-origin', wrapper).forEach((node) => {
+      node.style.opacity = node.getAttribute('opacity') || '1';
+      node.style.transform = 'none';
+      node.style.willChange = '';
+    });
+    wrapper.classList.add('is-bloomed');
+    wrapper.classList.remove('is-blooming');
+    state.interactive.sunflowerBloomed = true;
+    enableSunflowerPetals();
+    ensureSunflowerMemory();
+    Storage.saveInteractive();
+    if (state.interactive.sunflowerPetals.length >= 2) enableSunflowerCenter();
+    else currentRuntime(4)?.after(duration(4000), enableSunflowerCenter);
+  }
+
+  function startSunflowerBloom() {
+    const wrapper = $('#cosmic-sunflower');
+    const runtime = currentRuntime(4);
+    if (!wrapper || !runtime) return;
+    if (state.interactive.sunflowerBloomed) {
+      finishSunflowerBloom();
+      return;
+    }
+    wrapper.classList.add('is-blooming');
+    const origin = $('.sunflower-origin', wrapper);
+    const center = $('.sunflower-center-art', wrapper);
+    const petals = $$('.sunflower-petal--visual', wrapper);
+    if (state.reducedMotion || typeof Element.prototype.animate !== 'function') {
+      finishSunflowerBloom();
+      return;
+    }
+
+    if (origin) {
+      origin.style.willChange = 'opacity, transform';
+      runtime.track(origin.animate([
+        { opacity: 0, transform: 'scale(.12)' }, { opacity: 1, transform: 'scale(1)' }
+      ], { duration: 700, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' }));
+    }
+    if (center) {
+      center.style.willChange = 'opacity, transform';
+      runtime.track(center.animate([
+        { opacity: 0, transform: 'scale(.08)' }, { opacity: 1, transform: 'scale(1)' }
+      ], { duration: 1150, delay: 280, easing: 'cubic-bezier(.16,.72,.24,1)', fill: 'both' }));
+    }
+    petals.forEach((petal, index) => {
+      petal.style.willChange = 'opacity, transform';
+      runtime.track(petal.animate([
+        { opacity: 0, transform: 'scale(.08) rotate(' + ((index % 2 ? 1 : -1) * 3) + 'deg)' },
+        { opacity: number(petal.getAttribute('opacity'), .9), transform: 'scale(1) rotate(0deg)' }
+      ], {
+        duration: 780 + seeded(index, 41) * 210,
+        delay: 470 + index * 68,
+        easing: 'cubic-bezier(.17,.68,.2,1)',
+        fill: 'both'
+      }));
+    });
+    runtime.after(3100, finishSunflowerBloom);
+  }
+
+  function openSunflowerCenter() {
+    if (state.interactive.sunflowerCenter) return;
+    const wrapper = $('#cosmic-sunflower');
+    const center = $('#sunflower-center');
+    const revelation = $('#sunflower-revelation');
+    const timeline = $('[data-timeline="sunflower"]', revelation);
+    if (!wrapper || !center || !revelation || !timeline) return;
+    state.interactive.sunflowerCenter = true;
+    center.disabled = true;
+    center.classList.add('is-open');
+    center.setAttribute('aria-expanded', 'true');
+    wrapper.classList.add('has-open-center');
+    $$('[data-sunflower-petal]', wrapper).forEach((button) => { button.disabled = true; });
+    $('#sunflower-explore-instruction').hidden = true;
+    $('#sunflower-center-instruction').hidden = true;
+    revelation.hidden = false;
+    const runtime = currentRuntime(4);
+    if (runtime) runtime.after(16, () => revelation.classList.add('is-active'));
+    else revelation.classList.add('is-active');
+    Storage.saveInteractive();
+    playTimeline(timeline, () => completeScene(4));
+  }
+
+  function initSunflower() {
+    const wrapper = $('#cosmic-sunflower');
+    const mount = $('[data-sunflower-mount]', wrapper);
     if (!wrapper || !mount) return;
-    let hitLayer = first(['[data-sunflower-petal-hits]', '.sunflower-petal-hits'], wrapper);
-    if (!hitLayer) {
-      hitLayer = document.createElement('div');
-      hitLayer.className = 'sunflower-petal-hits';
-      hitLayer.dataset.sunflowerPetalHits = '';
-      mount.after(hitLayer);
-    }
-    const wordsLayer = first(['[data-sunflower-words]', '.sunflower-words'], wrapper) || wrapper;
-    let buttons = $$('[data-sunflower-petal]', hitLayer);
-    let words = $$('[data-sunflower-word]', wordsLayer);
-    const announce = first(['#sunflower-word-live', '[data-sunflower-word-live]'], wrapper);
+    if (!$('.sunflower-svg', mount)) mount.appendChild(createSunflowerSvg(false));
+    buildSunflowerPetals();
+    $('#sunflower-center')?.addEventListener('click', openSunflowerCenter);
+  }
 
-    if (!buttons.length) {
-      const selectedPetals = [0, 3, 6, 9, 12, 15, 18, 21];
-      selectedPetals.forEach((petalIndex, index) => {
-        const angle = -90 + petalIndex * 15;
-        const radians = angle * Math.PI / 180;
-        const button = document.createElement('button');
-        const spark = document.createElement('span');
-        const x = 50 + Math.cos(radians) * 31;
-        const y = 47.2 + Math.sin(radians) * 31;
-
-        button.type = 'button';
-        button.className = 'sunflower-petal-hit';
-        button.dataset.sunflowerPetal = '';
-        button.dataset.index = String(index);
-        button.dataset.word = SUNFLOWER_WORDS[index];
-        button.setAttribute('aria-label', 'Revelar: ' + SUNFLOWER_WORDS[index]);
-        button.setAttribute('aria-pressed', 'false');
-        button.setAttribute('aria-hidden', 'true');
-        button.disabled = true;
-        button.style.left = x.toFixed(2) + '%';
-        button.style.top = y.toFixed(2) + '%';
-        button.style.setProperty('--petal-angle', angle + 'deg');
-        button.style.setProperty('--petal-x', x.toFixed(2) + '%');
-        button.style.setProperty('--petal-y', y.toFixed(2) + '%');
-        spark.className = 'sunflower-petal-hit__spark';
-        spark.setAttribute('aria-hidden', 'true');
-        button.appendChild(spark);
-        hitLayer.appendChild(button);
-
-        const word = document.createElement('span');
-        const wordRadius = index % 2 ? 41 : 39;
-        const wordX = 50 + Math.cos(radians) * wordRadius;
-        const wordY = 47.2 + Math.sin(radians) * wordRadius;
-        word.className = 'sunflower-word';
-        word.dataset.sunflowerWord = '';
-        word.dataset.index = String(index);
-        word.textContent = SUNFLOWER_WORDS[index];
-        word.hidden = true;
-        word.style.left = wordX.toFixed(2) + '%';
-        word.style.top = wordY.toFixed(2) + '%';
-        word.style.setProperty('--word-x', wordX.toFixed(2) + '%');
-        word.style.setProperty('--word-y', wordY.toFixed(2) + '%');
-        wordsLayer.appendChild(word);
-      });
-
-      buttons = $$('[data-sunflower-petal]', hitLayer);
-      words = $$('[data-sunflower-word]', wordsLayer);
-    }
-
-    buttons.forEach((button, index) => {
-      button.type = 'button';
-      const resolvedIndex = number(button.dataset.index, index);
-      const wordNode = words.find((word) => number(word.dataset.index, -1) === resolvedIndex) || words[index];
-
-      if (state.interactive.sunflowerPetals.includes(resolvedIndex)) {
+  function restoreSunflower() {
+    const wrapper = $('#cosmic-sunflower');
+    if (!wrapper) return;
+    if (state.interactive.sunflowerBloomed || state.interactive.sunflowerCenter) finishSunflowerBloom();
+    state.interactive.sunflowerPetals.forEach((index) => {
+      const button = $('[data-sunflower-petal][data-index="' + index + '"]', wrapper);
+      const word = $('[data-sunflower-word][data-index="' + index + '"]', wrapper);
+      if (button) {
         button.classList.add('is-chosen');
         button.setAttribute('aria-pressed', 'true');
-        if (wordNode) revealImmediately(wordNode);
       }
-
-      button.addEventListener('click', () => {
-        revealSunflowerWord(wrapper, button, wordNode, announce, resolvedIndex);
-      });
-    });
-  }
-
-  function openSunflowerCenter(wrapper, centerButton, revelation, instruction, restoring = false) {
-    if (!wrapper || !centerButton || !revelation) return;
-    state.interactive.sunflowerCenter = true;
-    clearTimer(state.sunflowerUnlockTimer);
-    state.sunflowerUnlockTimer = 0;
-    centerButton.disabled = true;
-    centerButton.setAttribute('aria-expanded', 'true');
-    centerButton.classList.add('is-open');
-    wrapper.classList.add('is-zoomed', 'has-open-center');
-    if (instruction) instruction.hidden = true;
-    show(revelation);
-    revelation.classList.add('is-active');
-
-    const lines = unique(['[data-reveal]', '[data-sunflower-line]', 'p'], revelation);
-    if (restoring) {
-      lines.forEach(revealImmediately);
-    } else {
-      revealSequence(lines, duration(720, 0), duration(350, 0));
-      const svg = $('.sunflower-svg', wrapper);
-      if (svg && !state.reducedMotion && typeof svg.animate === 'function') {
-        svg.animate([
-          { transform: 'scale(1)' },
-          { transform: 'scale(1.075)' }
-        ], {
-          duration: 1800,
-          easing: 'cubic-bezier(.2,.7,.2,1)',
-          fill: 'forwards'
-        });
+      if (word) {
+        word.hidden = false;
+        word.classList.add('is-visible');
       }
+    });
+    if (state.interactive.sunflowerCenter) {
+      const center = $('#sunflower-center');
+      const revelation = $('#sunflower-revelation');
+      wrapper.classList.add('has-open-center');
+      if (center) {
+        center.hidden = false;
+        center.disabled = true;
+        center.classList.add('is-open');
+        center.setAttribute('aria-expanded', 'true');
+      }
+      $$('[data-sunflower-petal]', wrapper).forEach((button) => { button.disabled = true; });
+      if (revelation) {
+        revelation.hidden = false;
+        revelation.classList.add('is-active');
+      }
+    } else if (state.interactive.sunflowerPetals.length >= 2) {
+      enableSunflowerCenter();
     }
-    saveInteractiveState();
   }
 
-  function initCosmicSunflower() {
-    const wrapper = first(['#cosmic-sunflower', '[data-cosmic-sunflower]', '.cosmic-sunflower']);
-    if (!wrapper) return;
-    const mount = first(['[data-sunflower-mount]', '.sunflower-mount'], wrapper) || wrapper;
-    let svg = $('.sunflower-svg:not(.sunflower-svg--miniature)', mount);
-    if (!svg) {
-      svg = createSunflowerSvg(false);
-      mount.insertBefore(svg, mount.firstChild);
-    }
-
-    let centerButton = first(['#sunflower-center', '[data-sunflower-center]'], wrapper);
-    if (!centerButton) {
-      centerButton = document.createElement('button');
-      centerButton.id = 'sunflower-center';
-      centerButton.type = 'button';
-      centerButton.className = 'sunflower-center-button';
-      centerButton.dataset.sunflowerCenter = '';
-      centerButton.setAttribute('aria-label', 'Abrir el corazón del girasol');
-      wrapper.appendChild(centerButton);
-    }
-    centerButton.type = 'button';
-
-    const revelation = first(['#sunflower-revelation', '[data-sunflower-revelation]']);
-    const instruction = first(['#sunflower-instruction', '[data-sunflower-instruction]'], wrapper);
-    initSunflowerPetals(wrapper, mount);
-
-    if (state.interactive.sunflowerCenter && revelation) {
-      show(centerButton);
-      enableSunflowerPetals(wrapper);
-      wrapper.dataset.bloomed = 'true';
-      wrapper.classList.add('is-blooming', 'is-bloomed');
-      openSunflowerCenter(wrapper, centerButton, revelation, instruction, true);
-    } else {
-      centerButton.disabled = true;
-      centerButton.hidden = true;
-      if (instruction) instruction.hidden = true;
-      observeOnce(wrapper, () => {
-        animateSunflowerBloom(wrapper, svg);
-        if (state.startedBefore && sceneRank(state.savedScene) > 4) {
-          enableSunflowerPetals(wrapper);
-          enableSunflowerCenter(wrapper);
-        }
-      }, { threshold: .2, rootMargin: '0px 0px -8% 0px' });
-    }
-
-    centerButton.addEventListener('click', () => {
-      if (centerButton.disabled || state.interactive.sunflowerCenter || !revelation) return;
-      openSunflowerCenter(wrapper, centerButton, revelation, instruction, false);
+  /* INSIGHT AND PROOF */
+  function revealOrbitWords(container) {
+    const runtime = currentRuntime();
+    if (!container || !runtime) return;
+    $$('span', container).forEach((word, index) => {
+      runtime.after(duration(index * 120), () => word.classList.add('is-visible'));
     });
   }
 
-  function createConstellationLines(container, count) {
-    if (!container || count < 2) return;
-    let svg = $('.constellation-lines', container);
-    if (svg) {
-      svg.replaceChildren();
-      svg.setAttribute('viewBox', '0 0 100 100');
-      svg.setAttribute('preserveAspectRatio', 'none');
-      svg.setAttribute('aria-hidden', 'true');
-    } else {
-      svg = svgElement('svg', {
-        viewBox: '0 0 100 100',
-        preserveAspectRatio: 'none',
-        class: 'constellation-lines',
-        'aria-hidden': 'true'
-      });
+  function restoreInsight() {
+    if (!state.interactive.insight) return;
+    const scene = $('#scene-2');
+    const button = $('#insight-star');
+    const result = $('#insight-result');
+    scene.classList.add('is-interacted');
+    button.disabled = true;
+    button.setAttribute('aria-expanded', 'true');
+    result.hidden = false;
+    $$('[data-insight-word]', result).forEach((word) => word.classList.add('is-visible'));
+  }
+
+  function activateInsight() {
+    if (state.interactive.insight) return;
+    const scene = $('#scene-2');
+    const button = $('#insight-star');
+    const result = $('#insight-result');
+    state.interactive.insight = true;
+    scene.classList.add('is-interacted');
+    button.disabled = true;
+    button.setAttribute('aria-expanded', 'true');
+    result.hidden = false;
+    revealOrbitWords($('.insight-orbit', result));
+    currentRuntime(2)?.after(duration(850), () => scene.classList.add('copy-is-speaking'));
+    Storage.saveInteractive();
+    playTimeline($('[data-timeline="insight"]', scene), () => completeScene(2));
+  }
+
+  function initInsight() {
+    $('#insight-star')?.addEventListener('click', activateInsight);
+  }
+
+  function restoreProof() {
+    if (!state.interactive.proof) return;
+    const scene = $('#scene-3');
+    const button = $('#proof-button');
+    const result = $('#proof-result');
+    scene.classList.add('is-interacted', 'copy-is-speaking');
+    button.disabled = true;
+    button.setAttribute('aria-expanded', 'true');
+    result.hidden = false;
+    $$('.proof-orbit span', result).forEach((word) => word.classList.add('is-visible'));
+  }
+
+  function activateProof() {
+    if (state.interactive.proof) return;
+    const scene = $('#scene-3');
+    const button = $('#proof-button');
+    const result = $('#proof-result');
+    state.interactive.proof = true;
+    scene.classList.add('is-interacted');
+    button.disabled = true;
+    button.setAttribute('aria-expanded', 'true');
+    result.hidden = false;
+    revealOrbitWords($('.proof-orbit', result));
+    currentRuntime(3)?.after(duration(700), () => scene.classList.add('copy-is-speaking'));
+    Storage.saveInteractive();
+    playTimeline($('[data-timeline="proof"]', scene), () => completeScene(3));
+  }
+
+  function initProof() {
+    $('#proof-button')?.addEventListener('click', activateProof);
+  }
+
+  /* FUTURE */
+  function futureMetrics(stage) {
+    const rectangle = stage.getBoundingClientRect();
+    return { x: rectangle.width * .74, y: -rectangle.height * .18 };
+  }
+
+  function finishFuture() {
+    const stage = $('#future-path');
+    if (!stage) return;
+    const movement = futureMetrics(stage);
+    $$('[data-future-star]', stage).forEach((star) => {
+      star.style.transform = 'translate3d(' + movement.x.toFixed(2) + 'px,' + movement.y.toFixed(2) + 'px,0)';
+      star.style.opacity = '1';
+      star.style.willChange = '';
+    });
+    $$('.future-route', stage).forEach((route) => {
+      route.style.strokeDashoffset = '0';
+      route.style.opacity = '.2';
+      route.style.willChange = '';
+    });
+    stage.classList.add('is-aligned');
+    state.interactive.future = true;
+    Storage.saveInteractive();
+  }
+
+  function animateFuture(restoring = false) {
+    const stage = $('#future-path');
+    const runtime = currentRuntime(6);
+    if (!stage) return;
+    if (state.interactive.future) {
+      finishFuture();
+      return;
     }
-    const links = [[0, 1], [1, 2], [2, 3], [2, 5], [3, 4], [4, 5]];
-    links.filter((pair) => pair[0] < count && pair[1] < count).forEach((pair) => {
-      const from = CONSTELLATION_POSITIONS[pair[0]] || [20, 50];
-      const to = CONSTELLATION_POSITIONS[pair[1]] || [80, 50];
-      const line = svgElement('line', {
-        x1: from[0],
-        y1: from[1],
-        x2: to[0],
-        y2: to[1],
-        class: 'constellation-line',
-        'data-from': pair[0],
-        'data-to': pair[1]
-      });
-      svg.appendChild(line);
+    if (!runtime || stage.dataset.animating === 'true') return;
+    stage.dataset.animating = 'true';
+    const movement = futureMetrics(stage);
+    if (state.reducedMotion || restoring || typeof Element.prototype.animate !== 'function') {
+      finishFuture();
+      return;
+    }
+    $$('[data-future-star]', stage).forEach((star, index) => {
+      star.style.willChange = 'transform, opacity';
+      runtime.track(star.animate([
+        { opacity: .65, transform: 'translate3d(0,0,0)' },
+        { opacity: 1, transform: 'translate3d(' + (movement.x * .5).toFixed(2) + 'px,' + (movement.y * .5 + (index ? 3 : -3)).toFixed(2) + 'px,0)', offset: .5 },
+        { opacity: 1, transform: 'translate3d(' + movement.x.toFixed(2) + 'px,' + movement.y.toFixed(2) + 'px,0)' }
+      ], { duration: 2700, delay: index * 80, easing: 'cubic-bezier(.38,0,.2,1)', fill: 'both' }));
     });
-    if (!svg.parentElement) container.insertBefore(svg, container.firstChild);
+    $$('.future-route', stage).forEach((route, index) => {
+      route.style.willChange = 'stroke-dashoffset, opacity';
+      runtime.track(route.animate([
+        { strokeDashoffset: 1, opacity: 0 }, { strokeDashoffset: 0, opacity: .2 }
+      ], { duration: 2700, delay: index * 80, easing: 'ease-in-out', fill: 'both' }));
+    });
+    runtime.after(2860, finishFuture);
   }
 
-  function updateConstellationState(container, stars) {
-    const visited = new Set(state.interactive.constellationVisited);
-    stars.forEach((star, index) => {
-      const resolvedIndex = number(star.dataset.index, index);
-      star.classList.toggle('is-visited', visited.has(resolvedIndex));
+  function resetFutureIfIncomplete() {
+    if (state.interactive.future) return;
+    const stage = $('#future-path');
+    if (!stage) return;
+    stage.dataset.animating = '';
+    $$('[data-future-star]', stage).forEach((star) => {
+      star.style.transform = '';
+      star.style.opacity = '';
+      star.style.willChange = '';
     });
-    $$('.constellation-line', container).forEach((line, index) => {
-      const hasEndpoints = line.dataset.from !== undefined && line.dataset.to !== undefined;
-      const from = number(line.dataset.from, -1);
-      const to = number(line.dataset.to, -1);
-      const shouldLight = hasEndpoints
-        ? visited.has(from) && visited.has(to)
-        : visited.size > index;
-      line.classList.toggle('is-lit', shouldLight);
+    $$('.future-route', stage).forEach((route) => {
+      route.style.strokeDashoffset = '';
+      route.style.opacity = '';
+      route.style.willChange = '';
     });
-    container.classList.toggle('is-complete', visited.size >= stars.length && stars.length > 0);
   }
 
-  function initConstellation() {
-    const container = first(['#constellation', '[data-constellation]', '.constellation']);
+  /* CONSTELLATION, GALAXY AND SECRET */
+  function createConstellationLines() {
+    const container = $('#constellation');
+    if (!container || $('.constellation-lines', container)) return;
+    const svg = svgElement('svg', { viewBox: '0 0 100 100', preserveAspectRatio: 'none', class: 'constellation-lines', 'aria-hidden': 'true' });
+    [[0, 1], [1, 2], [2, 3], [2, 5], [3, 4], [4, 5]].forEach(([from, to]) => {
+      svg.appendChild(svgElement('line', {
+        x1: CONSTELLATION_POSITIONS[from][0], y1: CONSTELLATION_POSITIONS[from][1],
+        x2: CONSTELLATION_POSITIONS[to][0], y2: CONSTELLATION_POSITIONS[to][1],
+        class: 'constellation-line', 'data-from': from, 'data-to': to
+      }));
+    });
+    container.insertBefore(svg, container.firstChild);
+  }
+
+  function updateConstellation() {
+    const container = $('#constellation');
     if (!container) return;
-    const stars = unique(['[data-constellation-star]', '.constellation-star'], container);
-    const panel = first(['#constellation-panel', '[data-constellation-panel]', '.constellation-modal']);
-    const title = panel ? first(['#constellation-title', '[data-constellation-title]'], panel) : null;
-    const message = panel ? first(['#constellation-message', '[data-constellation-message]'], panel) : null;
-    const close = panel ? first(['#constellation-close', '[data-constellation-close]', '.constellation-close'], panel) : null;
-
-    stars.forEach((star, index) => {
-      const position = CONSTELLATION_POSITIONS[index];
-      const resolvedIndex = number(star.dataset.index, index);
-      star.type = 'button';
-      star.dataset.index = String(resolvedIndex);
-      star.setAttribute('aria-expanded', 'false');
-      if (panel && panel.id) star.setAttribute('aria-controls', panel.id);
-      if (position) {
-        star.style.setProperty('--star-x', position[0] + '%');
-        star.style.setProperty('--star-y', position[1] + '%');
-      }
+    const visited = new Set(state.interactive.constellationVisited);
+    $$('[data-constellation-star]', container).forEach((star) => {
+      star.classList.toggle('is-visited', visited.has(Math.trunc(number(star.dataset.index, -1))));
     });
-
-    createConstellationLines(container, stars.length);
-    updateConstellationState(container, stars);
-
-    let activeStar = null;
-
-    const closePanel = () => {
-      if (!panel || panel.hidden) return;
-      panel.classList.remove('is-open', 'is-visible');
-      panel.setAttribute('aria-hidden', 'true');
-      panel.hidden = true;
-      document.body.classList.remove('constellation-dialog-open');
-      stars.forEach((star) => {
-        star.classList.remove('is-active');
-        star.setAttribute('aria-expanded', 'false');
-      });
-      activeStar = null;
-    };
-
-    stars.forEach((star, index) => {
-      star.addEventListener('click', () => {
-        const resolvedIndex = number(star.dataset.index, index);
-        if (!state.interactive.constellationVisited.includes(resolvedIndex)) {
-          state.interactive.constellationVisited.push(resolvedIndex);
-          state.interactive.constellationVisited.sort((a, b) => a - b);
-        }
-        activeStar = star;
-        stars.forEach((item) => {
-          const active = item === star;
-          item.classList.toggle('is-active', active);
-          item.setAttribute('aria-expanded', String(active));
-        });
-        updateConstellationState(container, stars);
-        saveInteractiveState();
-
-        if (!panel) return;
-        if (title) title.textContent = star.dataset.title || star.getAttribute('aria-label') || 'Una estrella';
-        if (message) message.textContent = star.dataset.message || '';
-        show(panel);
-        panel.classList.add('is-open', 'is-visible');
-        panel.setAttribute('aria-hidden', 'false');
-        document.body.classList.add('constellation-dialog-open');
-      });
-    });
-
-    if (close) {
-      close.type = 'button';
-      close.addEventListener('click', closePanel);
-    }
-    panel?.addEventListener('click', (event) => {
-      if (event.target === panel) closePanel();
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && activeStar) {
-        event.preventDefault();
-        closePanel();
-      }
+    $$('.constellation-line', container).forEach((line) => {
+      line.classList.toggle('is-lit', visited.has(number(line.dataset.from, -1)) && visited.has(number(line.dataset.to, -1)));
     });
   }
 
+  function openConstellation(star) {
+    const panel = $('#constellation-panel');
+    if (!panel) return;
+    const index = Math.trunc(number(star.dataset.index, -1));
+    if (!state.interactive.constellationVisited.includes(index)) state.interactive.constellationVisited.push(index);
+    state.lastDialogTrigger = star;
+    $('#constellation-title').textContent = star.dataset.title || '';
+    $('#constellation-message').textContent = star.dataset.message || '';
+    panel.hidden = false;
+    star.setAttribute('aria-expanded', 'true');
+    updateConstellation();
+    Storage.saveInteractive();
+    if (state.interactive.universeReady) completeScene(7);
+    try { panel.focus({ preventScroll: true }); } catch (_error) {}
+  }
+
+  function closeConstellation() {
+    const panel = $('#constellation-panel');
+    if (!panel || panel.hidden) return;
+    panel.hidden = true;
+    $$('[data-constellation-star]').forEach((star) => star.removeAttribute('aria-expanded'));
+    try { state.lastDialogTrigger?.focus({ preventScroll: true }); } catch (_error) {}
+    state.lastDialogTrigger = null;
+  }
+
+  function openSecret() {
+    const trigger = $('#secret-star');
+    const message = $('#secret-message');
+    if (!trigger || !message) return;
+    state.interactive.secret = true;
+    state.lastDialogTrigger = trigger;
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.classList.add('is-found');
+    message.hidden = false;
+    Storage.saveInteractive();
+    try { message.focus({ preventScroll: true }); } catch (_error) {}
+  }
+
+  function closeSecret() {
+    const trigger = $('#secret-star');
+    const message = $('#secret-message');
+    if (!message || message.hidden) return;
+    message.hidden = true;
+    trigger?.setAttribute('aria-expanded', 'false');
+    try { state.lastDialogTrigger?.focus({ preventScroll: true }); } catch (_error) {}
+    state.lastDialogTrigger = null;
+  }
+
+  function closeDialogs() {
+    closeConstellation();
+    closeSecret();
+  }
+
+  function createGalaxyDust() {
+    const mount = $('[data-galaxy-dust]');
+    if (!mount || mount.children.length) return;
+    const fragment = document.createDocumentFragment();
+    for (let index = 0; index < 8; index += 1) {
+      const particle = document.createElement('span');
+      particle.className = 'dust-particle';
+      particle.style.left = (8 + seeded(index, 61) * 84).toFixed(2) + '%';
+      particle.style.top = (12 + seeded(index, 62) * 76).toFixed(2) + '%';
+      particle.style.setProperty('--dust-time', (5 + seeded(index, 63) * 4).toFixed(2) + 's');
+      particle.style.setProperty('--dust-delay', (-seeded(index, 64) * 5).toFixed(2) + 's');
+      fragment.appendChild(particle);
+    }
+    mount.appendChild(fragment);
+  }
+
+  function initUniverse() {
+    createConstellationLines();
+    createGalaxyDust();
+    $$('[data-constellation-star]').forEach((star) => star.addEventListener('click', () => openConstellation(star)));
+    $('#constellation-close')?.addEventListener('click', closeConstellation);
+    $('#secret-star')?.addEventListener('click', openSecret);
+    $('#secret-close')?.addEventListener('click', closeSecret);
+    updateConstellation();
+    if (state.interactive.secret) $('#secret-star')?.classList.add('is-found');
+  }
+
+  /* ANDREA */
   function flattenAndreaLayout() {
     const points = [];
     const advance = 6;
     ANDREA_LAYOUT.forEach((glyph, letterIndex) => {
       glyph.points.forEach((point, pointIndex) => {
-        points.push({
-          letter: glyph.letter,
-          letterIndex,
-          pointIndex,
-          x: letterIndex * advance + point[0],
-          y: point[1]
-        });
+        points.push({ letter: glyph.letter, letterIndex, pointIndex, x: letterIndex * advance + point[0], y: point[1] });
       });
     });
     return points;
   }
 
-  function revealAndreaCaption(restoring = false) {
-    const nodes = unique(['[data-andrea-after]', '.andrea-after']);
-    const lines = [];
-    nodes.forEach((node) => {
-      show(node);
-      if (node.matches('p, h2, h3, [data-reveal]')) lines.push(node);
-      else lines.push(...unique(['[data-reveal]', 'p'], node));
+  function initAndrea() {
+    const mount = $('[data-andrea-mount]');
+    if (!mount || mount.children.length) return;
+    const points = flattenAndreaLayout();
+    const totalWidth = (ANDREA_LAYOUT.length - 1) * 6 + 4;
+    const fragment = document.createDocumentFragment();
+    points.forEach((point, index) => {
+      const star = document.createElement('span');
+      const targetX = 5 + point.x / totalWidth * 90;
+      const targetY = 18 + point.y / 6 * 64;
+      star.className = 'andrea-star' + (index === 37 ? ' is-special' : '');
+      star.dataset.andreaStar = '';
+      star.dataset.fromX = (2 + seeded(index, 71) * 96).toFixed(3);
+      star.dataset.fromY = (2 + seeded(index, 72) * 96).toFixed(3);
+      star.dataset.targetX = targetX.toFixed(3);
+      star.dataset.targetY = targetY.toFixed(3);
+      star.dataset.targetOpacity = (.76 + seeded(index, 73) * .24).toFixed(2);
+      star.style.left = star.dataset.targetX + '%';
+      star.style.top = star.dataset.targetY + '%';
+      star.style.setProperty('--andrea-star-size', (2.1 + seeded(index, 74) * 2.6).toFixed(2) + 'px');
+      star.setAttribute('aria-hidden', 'true');
+      fragment.appendChild(star);
     });
-    if (restoring) lines.forEach(revealImmediately);
-    else revealSequence(lines, duration(460, 0), duration(1150, 0));
+    mount.appendChild(fragment);
   }
 
-  function finishAndrea(stage, stars, restoring = false) {
-    stars.forEach((star) => {
-      star.style.transform = 'translate3d(0,0,0) scale(1)';
+  function setAndreaFormed() {
+    const stage = $('#andrea-stars');
+    if (!stage) return;
+    $$('[data-andrea-star]', stage).forEach((star) => {
       star.style.opacity = star.dataset.targetOpacity || '1';
-      star.classList.add('is-formed');
+      star.style.transform = 'translate3d(0,0,0) scale(1)';
+      star.style.willChange = '';
     });
-    stage.classList.remove('is-forming');
     stage.classList.add('is-formed');
+    stage.classList.remove('is-forming');
     document.body.classList.remove('andrea-is-forming');
     state.interactive.andrea = true;
-    revealAndreaCaption(restoring);
-    saveInteractiveState();
+    Storage.saveInteractive();
   }
 
-  function formAndreaName(stage, stars) {
-    if (!stage || stage.dataset.formed === 'true') return;
-    stage.dataset.formed = 'true';
-    stage.classList.add('is-forming');
-    document.body.classList.add('andrea-is-forming');
+  function startAndreaCopy() {
+    const scene = $('#scene-8');
+    const timeline = $('[data-timeline="andrea"]', scene);
+    if (!scene || !timeline) return;
+    scene.classList.add('andrea-copy-is-visible');
+    timeline.hidden = false;
+    playTimeline(timeline, () => completeScene(8));
+  }
 
-    if (state.reducedMotion || typeof Element.prototype.animate !== 'function') {
-      finishAndrea(stage, stars, false);
+  function finishAndrea() {
+    setAndreaFormed();
+    currentRuntime(8)?.after(duration(1200), startAndreaCopy);
+  }
+
+  function formAndrea() {
+    const stage = $('#andrea-stars');
+    const runtime = currentRuntime(8);
+    if (!stage || !runtime) return;
+    if (state.interactive.andrea) {
+      setAndreaFormed();
+      runtime.after(duration(260), startAndreaCopy);
       return;
     }
-
+    if (stage.dataset.animating === 'true') return;
+    stage.dataset.animating = 'true';
+    stage.classList.add('is-forming');
+    document.body.classList.add('andrea-is-forming');
     const rectangle = stage.getBoundingClientRect();
-    const width = Math.max(rectangle.width, 280);
-    const height = Math.max(rectangle.height, 170);
-    let longest = 0;
+    const stars = $$('[data-andrea-star]', stage);
 
+    if (state.reducedMotion || typeof Element.prototype.animate !== 'function') {
+      finishAndrea();
+      return;
+    }
     stars.forEach((star, index) => {
       const targetX = number(star.dataset.targetX, 50);
       const targetY = number(star.dataset.targetY, 50);
-      const fromX = number(star.dataset.fromX, 50);
-      const fromY = number(star.dataset.fromY, 50);
-      const offsetX = (fromX - targetX) * width / 100;
-      const offsetY = (fromY - targetY) * height / 100;
-      const traceX = offsetX * .55 + (seeded(index, 51) - .5) * 58;
-      const traceY = offsetY * .5 + (seeded(index, 52) - .5) * 42;
-      const traceTwoX = offsetX * .22 + (seeded(index, 53) - .5) * 32;
-      const traceTwoY = offsetY * .2 + (seeded(index, 54) - .5) * 28;
-      const animationDuration = 2400 + seeded(index, 55) * 1050;
-      const delay = (index % 13) * 34 + Math.floor(index / 13) * 65;
-      longest = Math.max(longest, animationDuration + delay);
-
-      const animation = star.animate([
-        { opacity: .06, transform: 'translate3d(' + offsetX.toFixed(2) + 'px,' + offsetY.toFixed(2) + 'px,0) scale(.35)' },
-        { opacity: .42, transform: 'translate3d(' + traceX.toFixed(2) + 'px,' + traceY.toFixed(2) + 'px,0) scale(.65)', offset: .42 },
-        { opacity: .72, transform: 'translate3d(' + traceTwoX.toFixed(2) + 'px,' + traceTwoY.toFixed(2) + 'px,0) scale(.82)', offset: .72 },
+      const offsetX = (number(star.dataset.fromX, 50) - targetX) * rectangle.width / 100;
+      const offsetY = (number(star.dataset.fromY, 50) - targetY) * rectangle.height / 100;
+      const traceX = offsetX * .48 + (seeded(index, 76) - .5) * 42;
+      const traceY = offsetY * .44 + (seeded(index, 77) - .5) * 30;
+      const animationMs = 2800 + seeded(index, 78) * 430;
+      const delay = (index % 12) * 34 + Math.floor(index / 12) * 48;
+      star.style.willChange = 'transform, opacity';
+      runtime.track(star.animate([
+        { opacity: .04, transform: 'translate3d(' + offsetX.toFixed(2) + 'px,' + offsetY.toFixed(2) + 'px,0) scale(.35)' },
+        { opacity: .44, transform: 'translate3d(' + traceX.toFixed(2) + 'px,' + traceY.toFixed(2) + 'px,0) scale(.66)', offset: .52 },
         { opacity: number(star.dataset.targetOpacity, .9), transform: 'translate3d(0,0,0) scale(1)' }
-      ], {
-        duration: animationDuration,
-        delay,
-        easing: 'cubic-bezier(.22,.72,.2,1)',
-        fill: 'forwards'
-      });
-      animation.finished.then(() => {
-        star.style.opacity = star.dataset.targetOpacity || '1';
-        star.style.transform = 'translate3d(0,0,0) scale(1)';
-        animation.cancel();
-      }).catch(() => {});
+      ], { duration: animationMs, delay, easing: 'cubic-bezier(.22,.72,.2,1)', fill: 'both' }));
     });
-
-    setTimer(() => finishAndrea(stage, stars, false), longest + 80);
+    runtime.after(3850, finishAndrea);
   }
 
-  function initAndreaStars() {
-    const stage = first(['#andrea-stars', '[data-andrea-stars]', '.andrea-stage']);
+  function resetAndreaIfIncomplete() {
+    document.body.classList.remove('andrea-is-forming');
+    if (state.interactive.andrea) return;
+    const stage = $('#andrea-stars');
     if (!stage) return;
-    const mount = first(['[data-andrea-mount]', '.andrea-mount'], stage) || stage;
-    let stars = $$('[data-andrea-generated]', mount);
+    stage.dataset.animating = '';
+    stage.classList.remove('is-forming', 'is-formed', 'is-illuminated');
+    $$('[data-andrea-star]', stage).forEach((star) => {
+      star.style.opacity = '';
+      star.style.transform = '';
+      star.style.willChange = '';
+    });
+  }
 
-    if (!stars.length) {
-      const points = flattenAndreaLayout();
-      const fragment = document.createDocumentFragment();
-      const totalWidth = (ANDREA_LAYOUT.length - 1) * 6 + 4;
+  /* FINAL */
+  function initFinal() {
+    ensureSunflowerMemory();
+  }
 
-      points.forEach((point, index) => {
-        const star = document.createElement('span');
-        const targetX = 5 + point.x / totalWidth * 90;
-        const targetY = 17 + point.y / 6 * 66;
-        const size = 1.8 + seeded(index, 47) * 2.6;
+  /* SCENE CONTROLLER */
+  const SceneController = {
+    current: 0,
+    total: CONFIG.sceneCount,
+    scenes: [],
+    transitioning: false,
+    transitionTimer: 0,
 
-        star.className = 'andrea-star';
-        star.dataset.andreaGenerated = 'true';
-        star.dataset.letter = point.letter;
-        star.dataset.letterIndex = String(point.letterIndex);
-        star.dataset.fromX = (3 + seeded(index, 43) * 94).toFixed(3);
-        star.dataset.fromY = (3 + seeded(index, 44) * 94).toFixed(3);
-        star.dataset.targetX = targetX.toFixed(3);
-        star.dataset.targetY = targetY.toFixed(3);
-        star.dataset.targetOpacity = (.78 + seeded(index, 45) * .22).toFixed(2);
-        star.setAttribute('aria-hidden', 'true');
-        star.style.left = star.dataset.targetX + '%';
-        star.style.top = star.dataset.targetY + '%';
-        star.style.opacity = '0';
-        star.style.setProperty('--size', size.toFixed(2) + 'px');
-        star.style.setProperty('--andrea-star-size', size.toFixed(2) + 'px');
-        star.style.setProperty('--twinkle-duration', (4.2 + seeded(index, 48) * 3.4).toFixed(2) + 's');
-        star.style.setProperty('--twinkle-delay', (-seeded(index, 49) * 4.8).toFixed(2) + 's');
-        fragment.appendChild(star);
+    init() {
+      this.scenes = $$('[data-scene-index]').sort((a, b) => number(a.dataset.sceneIndex) - number(b.dataset.sceneIndex));
+      this.total = this.scenes.length;
+      this.current = clamp(state.currentScene, 0, this.total - 1);
+      state.currentScene = this.current;
+
+      this.scenes.forEach((scene, index) => {
+        const active = index === this.current;
+        scene.hidden = !active;
+        scene.inert = !active;
+        scene.setAttribute('aria-hidden', active ? 'false' : 'true');
+        scene.classList.toggle('is-active', active);
+        scene.classList.toggle('scene-paused', !active);
       });
-      mount.appendChild(fragment);
-      stars = $$('[data-andrea-generated]', mount);
-    }
 
-    mount.classList.add('is-enhanced');
-    stage.setAttribute('role', 'img');
-    stage.setAttribute('aria-label', 'Las estrellas forman lentamente el nombre ANDREA');
-
-    const shouldRestore = state.interactive.andrea || sceneRank(state.savedScene) > 10;
-    if (shouldRestore) {
-      stage.dataset.formed = 'true';
-      finishAndrea(stage, stars, true);
-    } else {
-      observeOnce(stage, () => formAndreaName(stage, stars), {
-        threshold: .24,
-        rootMargin: '0px 0px -7% 0px'
-      });
-    }
-  }
-
-  function ensureFutureRoutes(stage) {
-    if (!stage || $('.future-routes', stage)) return;
-    const existingSvg = first(['svg.future-path__trail', 'svg'], stage);
-    if (existingSvg) {
-      existingSvg.classList.remove('future-path__trail');
-      existingSvg.classList.add('future-routes');
-      const existingPaths = $$('path', existingSvg).slice(0, 2);
-      existingPaths.forEach((path, index) => {
-        path.classList.add('future-route', index === 0 ? 'future-route--first' : 'future-route--second');
-        path.setAttribute('pathLength', '1');
-      });
-      return;
-    }
-    const svg = svgElement('svg', {
-      viewBox: '0 0 100 100',
-      preserveAspectRatio: 'none',
-      class: 'future-routes',
-      'aria-hidden': 'true'
-    });
-    svg.appendChild(svgElement('path', {
-      d: 'M 16 39 C 38 35, 58 27, 84 19',
-      class: 'future-route future-route--first',
-      pathLength: 1
-    }));
-    svg.appendChild(svgElement('path', {
-      d: 'M 16 66 C 38 62, 58 54, 84 46',
-      class: 'future-route future-route--second',
-      pathLength: 1
-    }));
-    stage.insertBefore(svg, stage.firstChild);
-  }
-
-  function revealFutureCopy(restoring = false) {
-    const copy = unique(['[data-future-after]', '.future-after']);
-    if (restoring) copy.forEach(revealImmediately);
-    else revealSequence(copy, duration(380, 0), duration(620, 0));
-  }
-
-  function finishFuture(stage, stars, distanceX, distanceY, restoring = false) {
-    stars.slice(0, 2).forEach((star) => {
-      star.style.transform = 'translate3d(' + distanceX.toFixed(2) + 'px,' + distanceY.toFixed(2) + 'px,0)';
-    });
-    stage.classList.remove('is-travelling');
-    stage.classList.add('is-aligned');
-    state.interactive.future = true;
-    revealFutureCopy(restoring);
-    saveInteractiveState();
-  }
-
-  function animateFutureStars(stage, stars) {
-    if (stage.dataset.animated === 'true') return;
-    stage.dataset.animated = 'true';
-    stage.classList.add('is-travelling');
-    const rectangle = stage.getBoundingClientRect();
-    const distanceX = Math.max(120, rectangle.width * .52);
-    const distanceY = -Math.max(24, rectangle.height * .17);
-    const travelTime = duration(4400, 0);
-
-    if (!travelTime || typeof Element.prototype.animate !== 'function') {
-      finishFuture(stage, stars, distanceX, distanceY, false);
-      return;
-    }
-
-    stars.slice(0, 2).forEach((star, index) => {
-      const offset = index === 0 ? -4 : 4;
-      const animation = star.animate([
-        { opacity: .65, transform: 'translate3d(0,0,0)' },
-        { opacity: 1, transform: 'translate3d(' + (distanceX * .48).toFixed(2) + 'px,' + (distanceY * .48 + offset).toFixed(2) + 'px,0)', offset: .5 },
-        { opacity: 1, transform: 'translate3d(' + distanceX.toFixed(2) + 'px,' + distanceY.toFixed(2) + 'px,0)' }
-      ], {
-        duration: travelTime,
-        delay: index * 90,
-        easing: 'cubic-bezier(.38,0,.2,1)',
-        fill: 'forwards'
-      });
-      animation.finished.catch(() => {});
-    });
-
-    $$('.future-route', stage).forEach((route, index) => {
-      if (typeof route.animate !== 'function') return;
-      route.animate([
-        { strokeDasharray: '1', strokeDashoffset: '1', opacity: 0 },
-        { opacity: .38, offset: .24 },
-        { strokeDasharray: '1', strokeDashoffset: '0', opacity: .18 }
-      ], {
-        duration: travelTime,
-        delay: index * 90,
-        easing: 'ease-in-out',
-        fill: 'forwards'
-      });
-    });
-
-    setTimer(() => finishFuture(stage, stars, distanceX, distanceY, false), travelTime + 140);
-  }
-
-  function initFutureStars() {
-    const stage = first(['#future-path', '[data-future-path]', '.future-path']);
-    if (!stage) return;
-    let stars = unique(['[data-future-star]', '.future-star'], stage);
-    while (stars.length < 2) {
-      const star = document.createElement('span');
-      star.className = 'future-star future-star--' + (stars.length ? 'second' : 'first');
-      star.dataset.futureStar = stars.length ? 'second' : 'first';
-      star.setAttribute('aria-hidden', 'true');
-      stage.appendChild(star);
-      stars.push(star);
-    }
-
-    stars[0].style.left = '16%';
-    stars[0].style.top = '39%';
-    stars[1].style.left = '16%';
-    stars[1].style.top = '66%';
-    ensureFutureRoutes(stage);
-    stage.setAttribute('aria-label', 'Dos estrellas separadas avanzan en la misma dirección');
-
-    const rectangle = stage.getBoundingClientRect();
-    const distanceX = Math.max(120, rectangle.width * .52);
-    const distanceY = -Math.max(24, rectangle.height * .17);
-    const shouldRestore = state.interactive.future || sceneRank(state.savedScene) > 8;
-    if (shouldRestore) {
-      stage.dataset.animated = 'true';
-      finishFuture(stage, stars, distanceX, distanceY, true);
-    } else {
-      observeOnce(stage, () => animateFutureStars(stage, stars), { threshold: .27 });
-    }
-  }
-
-  function initSecretStar() {
-    const secretStar = first(['#secret-star', '[data-secret-star]', '.secret-star']);
-    const message = first(['#secret-message', '[data-secret-message]', '.secret-message']);
-    if (!secretStar || !message) return;
-    const close = first(['#secret-close', '[data-secret-close]', '.secret-message__close'], message);
-
-    secretStar.type = 'button';
-    secretStar.setAttribute('aria-expanded', 'false');
-    if (state.interactive.secret) secretStar.classList.add('was-found');
-
-    const closeMessage = () => {
-      message.classList.remove('is-open', 'is-visible');
-      message.hidden = true;
-      secretStar.setAttribute('aria-expanded', 'false');
-    };
-
-    secretStar.addEventListener('click', () => {
-      state.interactive.secret = true;
-      secretStar.classList.add('is-found', 'was-found');
-      secretStar.setAttribute('aria-expanded', 'true');
-      show(message);
-      message.classList.add('is-open', 'is-visible');
-      revealChildren(message, 190, 80);
-      saveInteractiveState();
-    });
-
-    if (close) {
-      close.type = 'button';
-      close.addEventListener('click', closeMessage);
-    }
-  }
-
-  function initFinalSunflower() {
-    const mount = first(['[data-final-sunflower-mount]', '.final-sunflower-mount']);
-    if (!mount || $('.sunflower-svg--miniature', mount)) return;
-    mount.appendChild(createSunflowerSvg(true));
-  }
-
-  function showFinale(finale, trigger, restoring = false) {
-    if (!finale) return;
-    state.interactive.finale = true;
-    stopAmbientTimers();
-    $$('[data-generated-shooting-star]').forEach((star) => star.remove());
-    if (trigger) {
-      trigger.type = 'button';
-      trigger.disabled = true;
-      trigger.setAttribute('aria-expanded', 'true');
-      trigger.classList.add('is-complete');
-    }
-    show(finale);
-    finale.classList.add('is-active');
-    document.body.classList.add('finale-active', 'finale-open');
-    initFinalSunflower();
-
-    const lines = unique(['[data-final-line]', '[data-reveal]', 'p'], finale);
-    const finalStar = first(['[data-final-star]', '.final-star'], finale);
-    const finalSunflower = first(['[data-final-sunflower-mount]', '.final-sunflower-mount'], finale);
-    const shootingStar = first(['[data-shooting-star]', '.final-shooting-star'], finale);
-
-    if (restoring) {
-      revealImmediately(finalStar);
-      lines.forEach(revealImmediately);
-      if (finalSunflower) finalSunflower.classList.add('is-visible');
-      if (shootingStar) shootingStar.classList.add('has-passed');
-      finale.classList.add('is-complete');
-    } else {
-      revealImmediately(finalStar);
-      show(finalSunflower);
-      show(shootingStar);
-      const timeline = [0, 1200, 2000, 2800, 4500, 5500, 7000, 8200, 10000, 14500, 17500];
-      // Reserve every line now, then reveal on an authored emotional timeline.
-      lines.forEach(show);
-      lines.forEach((line, index) => {
-        revealNode(line, duration(timeline[index] === undefined ? 17500 + (index - 10) * 1200 : timeline[index], 0));
-      });
-      const total = duration(timeline[Math.min(lines.length - 1, timeline.length - 1)] || 0, 0);
-      setTimer(() => {
-        if (finalSunflower) finalSunflower.classList.add('is-visible');
-      }, duration(total + 2200, 0));
-      setTimer(() => {
-        if (shootingStar) shootingStar.classList.add('is-active');
-        finale.classList.add('is-complete');
-      }, duration(total + 3400, 0));
-    }
-    saveInteractiveState();
-  }
-
-  function initFinale() {
-    const trigger = document.querySelector('#last-star-trigger');
-    const finale = document.querySelector('#finale');
-    if (!finale) return;
-    initFinalSunflower();
-
-    if (state.interactive.finale) {
-      showFinale(finale, trigger, true);
-      return;
-    }
-
-    if (!trigger) return;
-    trigger.type = 'button';
-    trigger.setAttribute('aria-expanded', 'false');
-    trigger.addEventListener('click', () => {
-      if (state.interactive.finale) return;
-      showFinale(finale, trigger, false);
-    });
-  }
-
-  function createLightRipple(target, event) {
-    if (!target || state.reducedMotion) return;
-    const rectangle = target.getBoundingClientRect();
-    const ripple = document.createElement('span');
-    ripple.className = 'light-ripple';
-    ripple.setAttribute('aria-hidden', 'true');
-    ripple.style.left = (event.clientX - rectangle.left) + 'px';
-    ripple.style.top = (event.clientY - rectangle.top) + 'px';
-    target.appendChild(ripple);
-
-    if (typeof ripple.animate === 'function') {
-      const animation = ripple.animate([
-        { opacity: .5, transform: 'translate(-50%,-50%) scale(.1)' },
-        { opacity: 0, transform: 'translate(-50%,-50%) scale(4)' }
-      ], { duration: 850, easing: 'cubic-bezier(.16,.72,.25,1)' });
-      animation.finished.catch(() => {}).finally(() => ripple.remove());
-    } else {
-      setTimer(() => ripple.remove(), 900);
-    }
-  }
-
-  function initLightRipples() {
-    document.addEventListener('click', (event) => {
-      if (!(event.target instanceof Element)) return;
-      const target = event.target.closest('.cosmic-btn, [data-ripple], [data-constellation-star], [data-sunflower-petal], [data-secret-star]');
-      if (target) createLightRipple(target, event);
-    });
-  }
-
-  function initSunflowerEcho() {
-    const echo = first(['[data-sunflower-echo]', '.sunflower-echo']);
-    if (!echo || $('.sunflower-svg--miniature', echo)) return;
-    echo.appendChild(createSunflowerSvg(true));
-    observeOnce(echo, () => echo.classList.add('is-visible'), { threshold: .15 });
-  }
-
-  function initGalaxyDepth() {
-    const galaxy = first(['#galaxy', '[data-galaxy]', '.galaxy']);
-    if (!galaxy) return;
-    observeOnce(galaxy, () => galaxy.classList.add('is-illuminated'), {
-      threshold: .16,
-      rootMargin: '0px 0px -5% 0px'
-    });
-  }
-
-  function updateScrollProgress() {
-    state.scrollFrame = 0;
-    const root = document.documentElement;
-    const maximum = Math.max(1, root.scrollHeight - window.innerHeight);
-    const amount = clamp(window.scrollY / maximum, 0, 1);
-    const progress = first(['#scroll-progress', '[data-scroll-progress]', '.progress-bar']);
-
-    root.style.setProperty('--scroll-progress', amount.toFixed(4));
-    root.style.setProperty('--scroll-parallax', (amount * 28).toFixed(2) + 'px');
-    document.body.classList.toggle('near-the-end', amount > .93);
-
-    if (progress) {
-      progress.style.transform = 'scaleX(' + amount.toFixed(4) + ')';
-      progress.setAttribute('aria-valuemin', '0');
-      progress.setAttribute('aria-valuemax', '100');
-      progress.setAttribute('aria-valuenow', String(Math.round(amount * 100)));
-    }
-  }
-
-  function requestProgressUpdate() {
-    if (!state.scrollFrame) state.scrollFrame = requestAnimationFrame(updateScrollProgress);
-  }
-
-  function initScrollProgress() {
-    window.addEventListener('scroll', () => {
-      requestProgressUpdate();
-      queueExperienceSave();
-    }, { passive: true });
-    window.addEventListener('resize', requestProgressUpdate, { passive: true });
-    requestProgressUpdate();
-  }
-
-  function applyEnteredShell(restore = false) {
-    const door = first(['#scene-0', '[data-scene="0"]', '.door', '.intro-screen']);
-    const experience = first(['#experience', '[data-experience]', 'main.experience']);
-
-    state.entered = true;
-    document.body.classList.add('experience-started', 'is-entered');
-    document.body.classList.remove('is-locked', 'experience-locked', 'no-scroll');
-    if (experience) {
-      experience.removeAttribute('aria-hidden');
-      experience.inert = false;
-    }
-
-    const starField = first(['#star-field', '[data-star-field]', '.starfield']);
-    if (starField) starField.classList.add('is-visible');
-
-    if (door) {
-      door.classList.add(restore ? 'is-restored-away' : 'is-leaving');
-      door.setAttribute('aria-hidden', 'true');
-      if (restore) door.hidden = true;
-    }
-  }
-
-  function restoreSavedScrollPosition() {
-    if (!state.startedBefore || state.restoredScroll) {
-      state.restoring = false;
+      $('#scene-previous')?.addEventListener('click', () => this.previous());
+      $$('[data-scene-next]').forEach((button) => button.addEventListener('click', () => this.next()));
+      $('#enter-button')?.addEventListener('click', () => this.enterExperience());
+      this.updateChrome();
+      this.enterScene(this.current, true);
       document.documentElement.classList.remove('is-returning');
-      return;
-    }
+      document.body.classList.add('app-ready');
+    },
 
-    state.restoredScroll = true;
-    const savedY = state.savedScroll;
-    let settled = false;
-    const cancellationEvents = ['pointerdown', 'touchstart', 'wheel', 'keydown'];
+    activeScene() {
+      return this.scenes[this.current] || null;
+    },
 
-    const cancelRestoration = () => {
-      state.restorationCancelled = true;
-    };
-    const removeCancellationListeners = () => {
-      cancellationEvents.forEach((name) => {
-        window.removeEventListener(name, cancelRestoration);
-      });
-    };
-    cancellationEvents.forEach((name) => {
-      window.addEventListener(name, cancelRestoration, { passive: true });
-    });
-
-    const complete = () => {
-      if (settled) return;
-      settled = true;
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (!state.restorationCancelled && savedY > 0) {
-            const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-            const restoredY = clamp(savedY, 0, maximum);
-            window.scrollTo({ top: restoredY, left: 0, behavior: 'auto' });
-          }
-          state.restoring = false;
-          state.currentScene = state.savedScene;
-          document.documentElement.classList.remove('is-returning');
-          removeCancellationListeners();
-          requestProgressUpdate();
-        });
-      });
-    };
-
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(complete).catch(complete);
-      setTimer(complete, 900);
-    } else {
-      complete();
-    }
-  }
-
-  function restoreExperience() {
-    if (!state.startedBefore) return false;
-    if ('scrollRestoration' in window.history) {
-      try {
-        window.history.scrollRestoration = 'manual';
-      } catch (_error) {
-        // Older embedded browsers can expose a read-only implementation.
+    enterExperience() {
+      const firstEntry = !state.started;
+      if (!state.started) {
+        state.started = true;
+        Storage.set(STORAGE_KEYS.started, 'true');
       }
+      state.interactive.sceneStatus[0] = 'complete';
+      Storage.saveInteractive();
+      Audio.updateControls();
+      Ambient.scheduleShootingStar();
+      if (firstEntry) Audio.playFromGesture();
+      this.next();
+    },
+
+    next() {
+      if (this.current >= this.total - 1) return;
+      if (state.interactive.sceneStatus[this.current] !== 'complete') return;
+      this.goTo(this.current + 1);
+    },
+
+    previous() {
+      if (this.current <= 0) return;
+      this.goTo(this.current - 1);
+    },
+
+    goTo(index, options = {}) {
+      const targetIndex = clamp(Math.trunc(index), 0, this.total - 1);
+      if (targetIndex === this.current || this.transitioning) return;
+      const sourceIndex = this.current;
+      const source = this.scenes[sourceIndex];
+      const target = this.scenes[targetIndex];
+      if (!source || !target) return;
+      this.transitioning = true;
+      closeDialogs();
+      this.exitScene(sourceIndex);
+
+      source.style.willChange = 'opacity, transform';
+      target.style.willChange = 'opacity, transform';
+      source.classList.remove('is-active');
+      source.classList.add('is-exiting');
+      source.inert = true;
+      source.setAttribute('aria-hidden', 'true');
+
+      target.hidden = false;
+      target.inert = false;
+      target.classList.remove('scene-paused', 'is-exiting');
+      target.setAttribute('aria-hidden', 'false');
+      void target.offsetWidth;
+      target.classList.add('is-entering');
+
+      this.current = targetIndex;
+      state.currentScene = targetIndex;
+      Storage.set(STORAGE_KEYS.scene, targetIndex);
+      this.updateChrome();
+      this.enterScene(targetIndex, Boolean(options.restoring));
+
+      const transitionMs = state.reducedMotion ? 220 : state.lowPerformance ? CONFIG.transitionLowMs : CONFIG.transitionMs;
+      window.clearTimeout(this.transitionTimer);
+      this.transitionTimer = window.setTimeout(() => {
+        source.hidden = true;
+        source.classList.remove('is-exiting');
+        source.classList.add('scene-paused');
+        source.style.willChange = '';
+        target.classList.remove('is-entering');
+        target.classList.add('is-active');
+        target.style.willChange = '';
+        this.transitioning = false;
+      }, transitionMs);
+    },
+
+    updateChrome() {
+      document.body.dataset.currentScene = String(this.current);
+      document.body.classList.toggle('experience-started', state.started);
+      const back = $('#scene-previous');
+      if (back) back.hidden = this.current === 0;
+      const progress = $('#scene-progress');
+      if (progress) {
+        const value = this.total > 1 ? this.current / (this.total - 1) * 100 : 100;
+        progress.style.width = value.toFixed(3) + '%';
+        progress.setAttribute('aria-valuenow', String(Math.round(value)));
+      }
+      Audio.updateControls();
+      const sceneName = this.scenes[this.current]?.dataset.sceneName;
+      const live = $('#live-region');
+      if (live && sceneName) live.textContent = sceneName;
+    },
+
+    initializeScene(index) {
+      const scene = this.scenes[index];
+      if (!scene || scene.dataset.initialized === 'true') return;
+      if (index === 2) initInsight();
+      if (index === 3) initProof();
+      if (index === 4) initSunflower();
+      if (index === 5) ensureSunflowerMemory();
+      if (index === 7) initUniverse();
+      if (index === 8) {
+        ensureSunflowerMemory();
+        initAndrea();
+      }
+      if (index === 9) initFinal();
+      scene.dataset.initialized = 'true';
+    },
+
+    enterScene(index) {
+      this.initializeScene(index);
+      if (state.runtime) state.runtime.clear();
+      state.runtime = new SceneRuntime(index);
+      const status = state.interactive.sceneStatus[index];
+      if (status === 'complete') {
+        this.restoreCompletedScene(index);
+        return;
+      }
+      state.interactive.sceneStatus[index] = 'playing';
+      Storage.saveInteractive();
+      this.playScene(index);
+    },
+
+    playScene(index) {
+      const scene = this.scenes[index];
+      if (!scene) return;
+      if ([0, 1, 5, 6].includes(index)) {
+        playTimeline($('[data-auto-timeline]', scene), () => completeScene(index));
+      }
+      if (index === 2) {
+        playTimeline($('[data-timeline="main"]', scene));
+        if (state.interactive.insight) {
+          restoreInsight();
+          scene.classList.add('copy-is-speaking');
+          playTimeline($('[data-timeline="insight"]', scene), () => completeScene(2));
+        }
+      }
+      if (index === 3) {
+        playTimeline($('[data-timeline="main"]', scene));
+        if (state.interactive.proof) {
+          restoreProof();
+          playTimeline($('[data-timeline="proof"]', scene), () => completeScene(3));
+        }
+      }
+      if (index === 4) {
+        restoreSunflower();
+        if (state.interactive.sunflowerCenter) {
+          playTimeline($('[data-timeline="sunflower"]', scene), () => completeScene(4));
+        } else if (!state.interactive.sunflowerBloomed) {
+          startSunflowerBloom();
+        }
+      }
+      if (index === 7) {
+        playTimeline($('[data-auto-timeline]', scene), () => {
+          state.interactive.universeReady = true;
+          Storage.saveInteractive();
+          if (state.interactive.constellationVisited.length) completeScene(7);
+        });
+      }
+      if (index === 8) formAndrea();
+      if (index === 9) {
+        playTimeline($('[data-timeline="final"]', scene), () => completeScene(9));
+      }
+    },
+
+    restoreCompletedScene(index) {
+      const scene = this.scenes[index];
+      $$('[data-timeline]', scene).forEach(revealEntireTimeline);
+      if (index === 2) {
+        restoreInsight();
+        scene.classList.add('copy-is-speaking');
+      }
+      if (index === 3) restoreProof();
+      if (index === 4) restoreSunflower();
+      if (index === 5) {
+        scene.classList.add('love-is-visible');
+        document.body.classList.add('love-is-visible');
+      }
+      if (index === 6) finishFuture();
+      if (index === 7) {
+        scene.classList.add('constellation-is-visible');
+        updateConstellation();
+      }
+      if (index === 8) {
+        setAndreaFormed();
+        $('#andrea-stars')?.classList.add('is-illuminated');
+        scene.classList.add('andrea-copy-is-visible');
+        $('#andrea-after').hidden = false;
+      }
+      if (index === 9) {
+        state.interactive.final = true;
+        scene.classList.add('is-complete');
+      } else {
+        showSceneAction(scene);
+      }
+    },
+
+    exitScene(index) {
+      state.runtime?.clear();
+      state.runtime = null;
+      if (index === 4) $$('.is-pulsing', this.scenes[index]).forEach((node) => node.classList.remove('is-pulsing'));
+      if (index === 6) resetFutureIfIncomplete();
+      if (index === 8) resetAndreaIfIncomplete();
+      document.body.classList.remove('love-is-visible');
+    },
+
+    suspend() {
+      if (state.suspended) return;
+      if (this.transitioning) this.reconcile();
+      state.suspended = true;
+      state.runtime?.pause();
+      const scene = this.activeScene();
+      scene?.classList.add('scene-paused');
+      state.pausedAnimations = scene ? scene.getAnimations({ subtree: true }).filter((animation) => animation.playState === 'running') : [];
+      state.pausedAnimations.forEach((animation) => {
+        try { animation.pause(); } catch (_error) {}
+      });
+    },
+
+    resume() {
+      if (!state.suspended) return;
+      state.suspended = false;
+      const scene = this.activeScene();
+      scene?.classList.remove('scene-paused');
+      state.runtime?.resume();
+      state.pausedAnimations.forEach((animation) => {
+        try { if (animation.playState === 'paused') animation.play(); } catch (_error) {}
+      });
+      state.pausedAnimations = [];
+    },
+
+    reconcile() {
+      window.clearTimeout(this.transitionTimer);
+      this.transitionTimer = 0;
+      this.scenes.forEach((scene, index) => {
+        const active = index === this.current;
+        scene.hidden = !active;
+        scene.inert = !active;
+        scene.setAttribute('aria-hidden', active ? 'false' : 'true');
+        scene.classList.toggle('is-active', active);
+        scene.classList.toggle('scene-paused', !active);
+        scene.classList.remove('is-entering', 'is-exiting');
+        scene.style.willChange = '';
+      });
+      this.transitioning = false;
+      this.updateChrome();
     }
+  };
 
-    applyEnteredShell(true);
-    restoreAudio();
-    document.body.classList.add('has-started-before');
-    document.dispatchEvent(new CustomEvent('andrea:experience-started'));
-    restoreSavedScrollPosition();
-    return true;
-  }
+  window.SceneController = SceneController;
 
-  function revealDoor(door, enterButton) {
-    if (!door) return;
-    door.classList.add('is-ready');
-    const lines = unique(['[data-intro-line]', '[data-door-line]', '.intro-line'], door);
-    let lastDelay = 0;
-
-    lines.forEach((line, index) => {
-      const authored = number(line.dataset.delay, 900 + index * 1800);
-      lastDelay = Math.max(lastDelay, authored);
-      revealNode(line, authored);
+  /* LIFECYCLE */
+  function initLifecycle() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        Storage.flush();
+        Audio.suspend();
+        Ambient.pause();
+        SceneController.suspend();
+        document.body.classList.add('is-suspended');
+      } else {
+        document.body.classList.remove('is-suspended');
+        SceneController.resume();
+        Ambient.resume();
+        Audio.resume();
+      }
     });
 
-    if (!enterButton) return;
-    enterButton.hidden = true;
-    enterButton.disabled = true;
-    setTimer(() => {
-      show(enterButton);
-      enterButton.disabled = false;
-      enterButton.classList.add('is-visible', 'revealed');
-    }, duration(lastDelay + 900, 0));
-  }
-
-  function enterExperience(door, experience, enterButton) {
-    if (state.entered) return;
-
-    // This is the only audio start before the click handler yields.
-    startAudio();
-    state.entered = true;
-    state.startedBefore = true;
-    state.currentScene = '1';
-    state.savedScene = '1';
-    state.savedScroll = Math.max(0, window.scrollY);
-
-    if (enterButton) {
-      enterButton.disabled = true;
-      enterButton.setAttribute('aria-expanded', 'true');
-    }
-    applyEnteredShell(false);
-    updateAudioControls();
-    if (experience) {
-      experience.removeAttribute('aria-hidden');
-      experience.inert = false;
-    }
-
-    saveExperienceState();
-    document.documentElement.classList.remove('is-returning');
-    document.dispatchEvent(new CustomEvent('andrea:experience-started'));
-
-    setTimer(() => {
-      if (!door) return;
-      door.hidden = true;
-      door.classList.add('is-hidden');
-    }, duration(1350, 0));
-  }
-
-  function initEntrance() {
-    const door = first(['#scene-0', '[data-scene="0"]', '.door', '.intro-screen']);
-    const experience = first(['#experience', '[data-experience]', 'main.experience']);
-    const enterButton = first(['#enter-button', '[data-enter]']);
-
-    if (restoreExperience()) return;
-
-    document.documentElement.classList.remove('is-returning');
-    document.body.classList.add('is-locked', 'experience-locked');
-    document.body.classList.remove('has-started-before');
-    if (experience) {
-      experience.setAttribute('aria-hidden', 'true');
-      experience.inert = true;
-    }
-
-    if (!enterButton) {
-      state.entered = true;
-      state.startedBefore = true;
-      applyEnteredShell(false);
-      updateAudioControls();
-      saveExperienceState();
-      document.dispatchEvent(new CustomEvent('andrea:experience-started'));
-      return;
-    }
-
-    enterButton.type = 'button';
-    enterButton.setAttribute('aria-expanded', 'false');
-    revealDoor(door, enterButton);
-    enterButton.addEventListener('click', () => {
-      enterExperience(door, experience, enterButton);
-    }, { once: true });
-  }
-
-  function stopAmbientTimers() {
-    clearTimer(state.shootingTimer);
-    state.shootingTimer = 0;
-    state.shootingActive = false;
-  }
-
-  function resumeAmbientTimers() {
-    const starField = first(['#star-field', '[data-star-field]', '.starfield']);
-    if (state.entered && !state.interactive.finale && starField && !state.reducedMotion) {
-      scheduleShootingStars(starField, false);
-    }
-  }
-
-  function initLifecycle() {
     window.addEventListener('pagehide', () => {
-      saveExperienceState();
-      stopAmbientTimers();
+      Storage.flush();
+      Audio.suspend();
+      Ambient.pause();
+      SceneController.suspend();
     });
 
     window.addEventListener('pageshow', (event) => {
       if (!event.persisted) return;
-      // BFCache kept this exact DOM and these exact listeners. Only resume
-      // lightweight state; never initialize or reconstruct anything here.
-      if (state.entered) {
-        applyEnteredShell(true);
-        if (state.audio && state.audio.paused && state.audioAvailable) {
-          state.audioPlaying = false;
-          updateAudioControls();
-        }
-        resumeAmbientTimers();
-        requestProgressUpdate();
-      }
-    });
-
-    document.addEventListener('visibilitychange', () => {
+      SceneController.reconcile();
       if (document.hidden) {
-        saveExperienceState();
-        stopAmbientTimers();
+        document.body.classList.add('is-suspended');
         return;
       }
-      if (state.audio && state.audio.paused && state.audioHasPlayed) {
-        state.audioPlaying = false;
-        updateAudioControls();
-      }
-      resumeAmbientTimers();
-      requestProgressUpdate();
+      document.body.classList.remove('is-suspended');
+      SceneController.resume();
+      Ambient.resume();
+      Audio.resume();
     });
-  }
 
-  function initExperience() {
-    if (state.initialized) return;
-    state.initialized = true;
-    document.documentElement.classList.add('js');
-    loadExperienceState();
-    setMotionPreference();
-    setAllButtonTypes();
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeDialogs();
+    });
 
     if (typeof motionQuery.addEventListener === 'function') {
-      motionQuery.addEventListener('change', setMotionPreference);
-    } else if (typeof motionQuery.addListener === 'function') {
-      motionQuery.addListener(setMotionPreference);
+      motionQuery.addEventListener('change', (event) => {
+        state.reducedMotion = Boolean(event.matches);
+        if (state.reducedMotion) Ambient.pause();
+        else if (!document.hidden) Ambient.resume();
+      });
     }
-
-    const initializers = [
-      initAudio,
-      createStars,
-      initInitiativeMoment,
-      initProofMoment,
-      initCosmicSunflower,
-      initSunflowerEcho,
-      initConstellation,
-      initFutureStars,
-      initGalaxyDepth,
-      initSecretStar,
-      initAndreaStars,
-      initFinale,
-      initScrollAnimations,
-      initScrollProgress,
-      initLightRipples,
-      initLifecycle
-    ];
-
-    initializers.forEach((initialize) => {
-      try {
-        initialize();
-      } catch (_error) {
-        document.body.dataset.enhancementFallback = 'true';
-      }
-    });
-
-    initEntrance();
-    setAllButtonTypes();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initExperience, { once: true });
-  } else {
-    initExperience();
+  function initialize() {
+    loadState();
+    document.body.classList.toggle('low-performance', state.lowPerformance);
+    Audio.init();
+    Ambient.init();
+    initTapFeedback();
+    initLifecycle();
+    SceneController.init();
+    if (state.started) Audio.offerResume();
+    Storage.flush();
   }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
+  else initialize();
 })();

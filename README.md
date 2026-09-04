@@ -1,19 +1,6 @@
-# Un universo para Andrea
+# Universo para Andrea
 
-Una experiencia web romántica, cinematográfica e interactiva construida como una carta digital. La historia reconoce un error, evita excusas y cambia las promesas por hechos. Su recorrido es completamente lineal: no pide una respuesta ni presenta opciones de «sí» o «no».
-
-Es un sitio estático compatible con GitHub Pages. No usa backend, no transmite información y no requiere proceso de compilación.
-
-## Tecnologías
-
-- HTML5 semántico
-- CSS3 mobile first
-- JavaScript Vanilla
-- Bootstrap 5 mediante CDN
-- Cormorant Garamond e Inter mediante Google Fonts
-- SVG generado con JavaScript para el girasol cósmico
-
-No requiere React, Node.js, npm ni dependencias instaladas localmente.
+Experiencia web romántica, cinematográfica e interactiva construida como una sola aplicación estática. La historia avanza por diez momentos de pantalla completa: los textos conservan su propio ritmo, pero cada cambio de capítulo ocurre únicamente cuando la persona decide continuar.
 
 ## Estructura
 
@@ -24,108 +11,81 @@ No requiere React, Node.js, npm ni dependencias instaladas localmente.
 │   └── style.css
 ├── js/
 │   └── app.js
-├── cancion/
-│   └── .gitkeep
-├── assets/
-│   └── .gitkeep
-└── README.md
+└── cancion/
+    ├── .gitkeep
+    └── algo-que-se-quede.mp3
 ```
 
-La carpeta `cancion/` se conserva en Git mediante `.gitkeep`. El código no genera ni descarga el MP3: ese archivo se suministra manualmente en la ruta indicada.
+No utiliza React, npm, backend ni JavaScript de Bootstrap. Bootstrap se conserva únicamente como CSS; el girasol, las estrellas y todas las interacciones están programados con HTML, CSS, SVG y JavaScript Vanilla.
 
-## Añadir la música
+## Música
 
-Para añadir la canción coloca:
+La experiencia utiliza exactamente esta ruta relativa:
 
 ```text
-cancion/algo-que-se-quede.mp3
+./cancion/algo-que-se-quede.mp3
 ```
 
-El nombre debe permanecer en minúsculas, sin espacios ni tildes. La ruta usada por la página es `./cancion/algo-que-se-quede.mp3`.
+El audio usa `preload="metadata"`, empieza solo después de un gesto, hace un fade de tres segundos hasta un volumen de `0.22` y no se reinicia al cambiar de escena. El código no genera ni descarga el MP3.
 
-El navegador no solicita ni reproduce el MP3 antes de una interacción humana. Al pulsar **Entrar ✦**, el volumen sube gradualmente desde `0` hasta `0.22` durante aproximadamente tres segundos. El botón flotante permite silenciar o reanudar la música. Si el archivo no existe o el navegador bloquea la reproducción, la historia continúa normalmente; al restaurar una sesión puede aparecer el control **Continuar con música ✦**.
+## Arquitectura de escenas
 
-Usa únicamente música propia o con una licencia que permita su publicación.
+Las diez secciones usan `data-scene-index="0"` hasta `data-scene-index="9"`. `SceneController` mantiene una sola escena activa y ofrece:
 
-## Ver el proyecto localmente
+- `goTo(index)`;
+- `next()`;
+- `previous()`;
+- entrada y salida cinematográficas;
+- inicialización diferida de componentes costosos;
+- pausa y reanudación del runtime activo.
 
-Puedes abrir `index.html` directamente en un navegador moderno. Para reproducir con mayor fidelidad el comportamiento de GitHub Pages, sirve la carpeta mediante cualquier servidor HTTP estático y abre su URL local.
+Cada escena tiene un `SceneRuntime` propio. Sus timers y animaciones se pausan al ocultar la pestaña y se cancelan al abandonar el momento, evitando que una escena inactiva siga revelando contenido. La clase `.scene-paused` detiene también las animaciones CSS internas.
 
-## Recorrido
+El motor narrativo central lee los tiempos de cada bloque, muestra como máximo el presente y una frase anterior atenuada, y habilita `Continuar ✦` al terminar. Nunca cambia de escena automáticamente.
 
-La experiencia contiene catorce escenas numeradas del 0 al 13, seguidas por un cierre sin elección y una última estrella:
+## Persistencia
 
-- una puerta inicial que habilita música y estrellas;
-- una confesión directa, el aprendizaje y el momento «Con hechos»;
-- un girasol cósmico programado, con ocho pétalos explorables y un centro interactivo;
-- una constelación opcional integrada en la escena de iniciativa;
-- dos estrellas individuales que avanzan juntas sin fusionarse;
-- el universo profundo, una estrella secreta y la formación de `ANDREA`;
-- un cierre lineal que no exige respuesta;
-- una escena final que deja solamente estrellas, música y un pequeño girasol.
+Durante la pestaña actual se guardan solamente las claves activas de la experiencia:
 
-Las interacciones son exploratorias. No es obligatorio tocar todos los pétalos ni abrir todas las estrellas para continuar.
+```text
+experienceStarted
+currentScene
+musicCurrentTime
+musicMuted
+interactiveState
+```
 
-## Persistencia durante la sesión
+Una recarga restaura el capítulo, las líneas ya reveladas y las interacciones terminadas. Si el navegador bloquea la reanudación automática del audio, aparece `Continuar con música ✦` sin reiniciar la historia. También existe una migración única desde el estado de la versión anterior basada en scroll.
 
-Para resistir una recarga accidental, el descarte de una pestaña móvil o el regreso desde el historial, la experiencia guarda temporalmente en `sessionStorage`:
+## Rendimiento y adaptación
 
-- `experienceStarted`: indica que la puerta ya fue atravesada;
-- `lastScrollPosition`: conserva una posición vertical aproximada;
-- `lastScene`: identifica la escena alcanzada;
-- `musicCurrentTime`: conserva el instante aproximado de la canción;
-- `endingState`: registra el avance del cierre lineal, nunca una respuesta.
+- El documento y el escenario están fijados a `100vh`, `100svh` y `100dvh`, sin navegación por scroll.
+- La mayor parte del cielo es un conjunto de gradientes estáticos.
+- Se crean 22 estrellas DOM en equipos pequeños o limitados, 30 en teléfonos normales y un máximo de 40 en escritorio.
+- El girasol, las líneas de constelación, el polvo galáctico y las estrellas de ANDREA se construyen solo al entrar por primera vez en su escena.
+- Las escenas inactivas quedan ocultas, inertes y pausadas.
+- El modo de rendimiento limitado elimina blur y animaciones decorativas costosas.
+- `prefers-reduced-motion` acorta los tiempos, elimina parallax y desactiva estrellas fugaces.
+- Las áreas seguras de iOS y los teléfonos de poca altura tienen ajustes específicos.
 
-La posición se guarda con limitación de frecuencia y también durante `pagehide`. La restauración reconstruye primero el estado visual y después recupera el desplazamiento cuando el layout está listo. Los eventos `pageshow`, `pagehide` y `visibilitychange` contemplan el BFCache de Safari y los cambios de pestaña. Una protección global evita duplicar listeners, estrellas o audio.
+## Ejecutar localmente
 
-Estos datos viven únicamente en la pestaña y se descartan al terminar la sesión del navegador. No se envían a ningún servicio.
+Desde la raíz del proyecto:
 
-## Organización de JavaScript
+```bash
+python -m http.server 8000
+```
 
-`js/app.js` separa las responsabilidades principales en funciones dedicadas:
+Después abre `http://localhost:8000/`.
 
-- `initExperience()` y `restoreExperience()`;
-- `saveExperienceState()`;
-- `initAudio()` y `restoreAudio()`;
-- `createStars()`;
-- `initScrollAnimations()` e `initScrollProgress()`;
-- `initInitiativeMoment()`;
-- `initCosmicSunflower()` e `initSunflowerPetals()`;
-- `initConstellation()`;
-- `initAndreaStars()` e `initFutureStars()`;
-- `initSecretStar()`.
+También puede publicarse directamente con GitHub Pages porque todas las rutas del proyecto son relativas.
 
-La inicialización se protege con `window.__andreaUniverseInitialized`. El flujo normal no fuerza desplazamientos ni focos durante los revelados y no devuelve la página al inicio después de entrar.
+## Controles
 
-## Accesibilidad, móvil y rendimiento
+- `Entrar ✦`: inicia la experiencia y solicita la reproducción de música.
+- `Continuar ✦`: avanza cuando el momento ya terminó de revelarse.
+- `‹`: vuelve al momento anterior sin reiniciar música ni interacciones.
+- `♪`: activa o silencia la canción.
+- `Escape`: cierra la constelación o el mensaje secreto si están abiertos.
 
-- Controles nativos de teclado y botones con objetivos táctiles de al menos 44 × 44 px.
-- Estados ARIA, regiones de estado y alternativas textuales para momentos visuales.
-- Soporte para `prefers-reduced-motion`.
-- Alturas seguras con `svh` y `dvh`, pensadas especialmente para Safari en iPhone.
-- Diseño prioritario para 390 × 844 px, compatible también con 320, 375, 414 y 430 px de ancho.
-- Animaciones basadas principalmente en `transform` y `opacity`.
-- Estrellas DOM/CSS limitadas en móvil, sin Three.js, canvas pesado ni librerías de partículas.
-
-## Publicar en GitHub Pages
-
-1. Sube todos los archivos al repositorio conservando exactamente la estructura de carpetas.
-2. Abre **Settings → Pages**.
-3. En **Build and deployment**, selecciona **Deploy from a branch**.
-4. Elige la rama `main`, la carpeta `/ (root)` y pulsa **Save**.
-5. Espera a que GitHub muestre la URL publicada.
-
-Todas las rutas del proyecto son relativas, por lo que funcionan dentro de una ruta de repositorio como `usuario.github.io/Universo/`.
-
-## Comprobaciones recomendadas
-
-- Recorrer la historia completa en Safari para iPhone y Chrome para Android.
-- Bloquear y desbloquear el teléfono a mitad del recorrido.
-- Cambiar de pestaña, volver y probar una recarga accidental.
-- Rotar el dispositivo y regresar a vertical.
-- Abrir y cerrar la constelación.
-- Probar pétalos y centro del girasol.
-- Verificar el recorrido con el MP3 y también sin él.
-- Probar teclado y reducción de movimiento.
-
-> Antes de publicar, revisa el texto y los recursos. Un sitio de GitHub Pages puede ser público.
+Todos los controles son botones nativos, admiten teclado, tienen foco visible y objetivos táctiles de al menos 48 px; los pétalos mantienen un área útil mínima de 44 px mientras son interactivos.
