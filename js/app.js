@@ -1,111 +1,142 @@
 (() => {
   'use strict';
 
+  /*
+   * This file is intentionally idempotent. Safari can restore this document
+   * from its back-forward cache, and some hosts can evaluate a script twice.
+   * A second evaluation must not add listeners, timers, stars or audio.
+   */
+  if (window.__andreaUniverseInitialized) return;
+  window.__andreaUniverseInitialized = true;
+
   const STORAGE_KEYS = Object.freeze({
-    started: 'andrea-universe:started',
-    haptic: 'andrea-universe:first-te-quiero-haptic',
-    secret: 'andrea-universe:secret-star'
+    started: 'experienceStarted',
+    scroll: 'lastScrollPosition',
+    scene: 'lastScene',
+    music: 'musicCurrentTime',
+    ending: 'endingState'
   });
 
-  const CONSTELLATION_STORIES = Object.freeze([
-    {
-      title: 'Lo que extraño',
-      message: 'Esas conversaciones que empezaban hablando de cualquier bobada y terminaban convirtiéndose en parte de mi día favorito.'
-    },
-    {
-      title: 'Lo que aprendí',
-      message: 'Que una relación no puede vivir solamente de lo que uno siente. También hay que demostrarlo.'
-    },
-    {
-      title: 'Lo que quiero recuperar',
-      message: 'Las ganas de sorprendernos, inventarnos planes y seguir construyendo recuerdos.'
-    },
-    {
-      title: 'Lo que quiero cambiar',
-      message: 'Dejar de esperar. Tener iniciativa. Buscarte simplemente porque quiero verte.'
-    },
-    {
-      title: 'El futuro',
-      message: 'No sé exactamente cómo será. Pero cuando imagino uno bonito, me gustaría que estuvieras ahí.'
-    },
-    {
-      title: 'Una estrella vacía',
-      message: 'Esta todavía no tiene historia. Tal vez podamos llenarla algún día con algo que todavía no ha pasado.'
-    }
+  const AUDIO_SOURCE = './cancion/algo-que-se-quede.mp3';
+  const AUDIO_VOLUME = 0.22;
+  const AUDIO_FADE_MS = 3000;
+  const SCROLL_SAVE_DELAY = 240;
+
+  const SUNFLOWER_WORDS = Object.freeze([
+    'Escucharte.',
+    'Buscarte.',
+    'Proponer.',
+    'Estar.',
+    'Aprender.',
+    'Cuidar.',
+    'Sorprender.',
+    'Demostrar.'
   ]);
 
   const CONSTELLATION_POSITIONS = Object.freeze([
-    [12, 62],
-    [27, 25],
-    [47, 43],
-    [64, 17],
-    [83, 47],
-    [63, 78]
+    [13, 61],
+    [29, 27],
+    [47, 44],
+    [65, 19],
+    [84, 48],
+    [64, 79]
   ]);
 
-  // Each pair is a point in a 4 x 6 glyph. Keeping this data explicit makes
-  // the final word stable and legible at every responsive size.
   const ANDREA_LAYOUT = Object.freeze([
-    {
-      letter: 'A',
-      points: [[0, 6], [0.45, 4.6], [0.9, 3.2], [1.35, 1.8], [2, 0], [2.65, 1.8], [3.1, 3.2], [3.55, 4.6], [4, 6], [1, 3.55], [2, 3.55], [3, 3.55]]
-    },
-    {
-      letter: 'N',
-      points: [[0, 6], [0, 4.5], [0, 3], [0, 1.5], [0, 0], [0.8, 1.2], [1.6, 2.4], [2.4, 3.6], [3.2, 4.8], [4, 6], [4, 4.5], [4, 3], [4, 1.5], [4, 0]]
-    },
-    {
-      letter: 'D',
-      points: [[0, 0], [0, 1.5], [0, 3], [0, 4.5], [0, 6], [1.2, 0], [2.6, 0.2], [3.6, 1.2], [4, 3], [3.6, 4.8], [2.6, 5.8], [1.2, 6]]
-    },
-    {
-      letter: 'R',
-      points: [[0, 6], [0, 4.5], [0, 3], [0, 1.5], [0, 0], [1.3, 0], [2.7, 0.2], [3.8, 1.2], [3.7, 2.3], [2.7, 3], [1.3, 3], [2.3, 3.3], [3, 4.2], [3.5, 5.1], [4, 6]]
-    },
-    {
-      letter: 'E',
-      points: [[0, 0], [0, 1.5], [0, 3], [0, 4.5], [0, 6], [1.3, 0], [2.7, 0], [4, 0], [1.3, 3], [2.6, 3], [3.7, 3], [1.3, 6], [2.7, 6], [4, 6]]
-    },
-    {
-      letter: 'A',
-      points: [[0, 6], [0.45, 4.6], [0.9, 3.2], [1.35, 1.8], [2, 0], [2.65, 1.8], [3.1, 3.2], [3.55, 4.6], [4, 6], [1, 3.55], [2, 3.55], [3, 3.55]]
-    }
+    { letter: 'A', points: [[0, 6], [.7, 3.9], [1.35, 1.8], [2, 0], [2.65, 1.8], [3.3, 3.9], [4, 6], [1, 3.55], [3, 3.55]] },
+    { letter: 'N', points: [[0, 6], [0, 3], [0, 0], [1, 1.5], [2, 3], [3, 4.5], [4, 6], [4, 3], [4, 0]] },
+    { letter: 'D', points: [[0, 0], [0, 2], [0, 4], [0, 6], [1.25, 0], [3.35, .75], [4, 3], [3.35, 5.25], [1.25, 6]] },
+    { letter: 'R', points: [[0, 6], [0, 4], [0, 2], [0, 0], [1.35, 0], [3.55, .8], [3.45, 2.35], [1.35, 3], [2.6, 3.55], [4, 6]] },
+    { letter: 'E', points: [[0, 0], [0, 2], [0, 4], [0, 6], [2, 0], [4, 0], [3.6, 3], [4, 6]] },
+    { letter: 'A', points: [[0, 6], [.7, 3.9], [1.35, 1.8], [2, 0], [2.65, 1.8], [3.3, 3.9], [4, 6], [1, 3.55], [3, 3.55]] }
   ]);
-
-  const state = {
-    reducedMotion: false,
-    entered: false,
-    startedBefore: false,
-    audio: null,
-    audioToggle: null,
-    audioAvailable: true,
-    audioStarted: false,
-    audioMuted: false,
-    audioFadeFrame: 0,
-    shootingTimer: 0,
-    shootingStarted: false,
-    hapticDone: false,
-    endingChoice: null,
-    commonEndingShown: false,
-    timers: new Set(),
-    observers: []
-  };
 
   const motionQuery = typeof window.matchMedia === 'function'
     ? window.matchMedia('(prefers-reduced-motion: reduce)')
     : { matches: false };
 
+  const state = {
+    initialized: false,
+    reducedMotion: Boolean(motionQuery.matches),
+    startedBefore: false,
+    entered: false,
+    restoring: false,
+    restorationCancelled: false,
+    restoredScroll: false,
+    savedScroll: 0,
+    savedScene: '0',
+    currentScene: '0',
+    interactive: {
+      insight: false,
+      proof: false,
+      sunflowerPetals: [],
+      sunflowerCenter: false,
+      constellationVisited: [],
+      secret: false,
+      finale: false,
+      andrea: false,
+      future: false,
+      haptic: false
+    },
+    timers: new Set(),
+    observers: [],
+    sceneRatios: new Map(),
+    scrollSaveTimer: 0,
+    scrollFrame: 0,
+    resizeTimer: 0,
+    shootingTimer: 0,
+    shootingActive: false,
+    sunflowerUnlockTimer: 0,
+    audio: null,
+    audioToggle: null,
+    audioResume: null,
+    audioAvailable: true,
+    audioHasPlayed: false,
+    audioPlaying: false,
+    audioMuted: false,
+    audioFadeFrame: 0,
+    audioSaveAt: 0,
+    savedAudioTime: 0
+  };
+
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  const first = (...selectors) => {
-    for (const selector of selectors) {
-      const node = $(selector);
+
+  function first(selectors, root = document) {
+    const list = Array.isArray(selectors) ? selectors : [selectors];
+    for (const selector of list) {
+      const node = $(selector, root);
       if (node) return node;
     }
     return null;
-  };
+  }
 
-  function readSession(key) {
+  function unique(selectors, root = document) {
+    const list = Array.isArray(selectors) ? selectors : [selectors];
+    return Array.from(new Set(list.flatMap((selector) => $$(selector, root))));
+  }
+
+  function clamp(value, minimum, maximum) {
+    return Math.min(Math.max(value, minimum), maximum);
+  }
+
+  function number(value, fallback = 0) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function sceneRank(value) {
+    if (value === 'closing') return 14;
+    if (value === 'finale') return 15;
+    return number(value, 0);
+  }
+
+  function seeded(index, salt = 0) {
+    const raw = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+    return raw - Math.floor(raw);
+  }
+
+  function storageRead(key) {
     try {
       return window.sessionStorage.getItem(key);
     } catch (_error) {
@@ -113,15 +144,41 @@
     }
   }
 
-  function writeSession(key, value = 'true') {
+  function storageWrite(key, value) {
     try {
-      window.sessionStorage.setItem(key, value);
+      window.sessionStorage.setItem(key, String(value));
     } catch (_error) {
-      // Private browsing and locked-down webviews may deny storage.
+      // The experience remains complete when storage is unavailable.
     }
   }
 
-  function later(callback, delay = 0) {
+  function parseInteractiveState(value) {
+    let parsed = {};
+    try {
+      parsed = value ? JSON.parse(value) : {};
+    } catch (_error) {
+      parsed = {};
+    }
+
+    return {
+      insight: parsed.insight === true,
+      proof: parsed.proof === true,
+      sunflowerPetals: Array.isArray(parsed.sunflowerPetals)
+        ? Array.from(new Set(parsed.sunflowerPetals.map((item) => number(item, -1)).filter((item) => item >= 0 && item < 8)))
+        : [],
+      sunflowerCenter: parsed.sunflowerCenter === true,
+      constellationVisited: Array.isArray(parsed.constellationVisited)
+        ? Array.from(new Set(parsed.constellationVisited.map((item) => number(item, -1)).filter((item) => item >= 0)))
+        : [],
+      secret: parsed.secret === true,
+      finale: parsed.finale === true,
+      andrea: parsed.andrea === true,
+      future: parsed.future === true,
+      haptic: parsed.haptic === true
+    };
+  }
+
+  function setTimer(callback, delay = 0) {
     const timer = window.setTimeout(() => {
       state.timers.delete(timer);
       callback();
@@ -130,137 +187,141 @@
     return timer;
   }
 
-  function clamp(value, min, max) {
-    return Math.min(Math.max(value, min), max);
+  function clearTimer(timer) {
+    if (!timer) return;
+    window.clearTimeout(timer);
+    state.timers.delete(timer);
   }
 
-  function numeric(value, fallback = 0) {
-    const number = Number.parseFloat(value);
-    return Number.isFinite(number) ? number : fallback;
+  function duration(normal, reduced = 0) {
+    return state.reducedMotion ? reduced : normal;
   }
 
-  function seeded(index, salt = 0) {
-    const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
-    return value - Math.floor(value);
-  }
-
-  function motionDuration(duration, reducedValue = 0) {
-    return state.reducedMotion ? reducedValue : duration;
-  }
-
-  function showNode(node) {
+  function show(node) {
     if (!node) return;
     node.hidden = false;
     node.removeAttribute('aria-hidden');
   }
 
-  function hideNode(node) {
+  function revealImmediately(node) {
     if (!node) return;
-    node.hidden = true;
-    node.setAttribute('aria-hidden', 'true');
-    node.classList.remove('is-visible', 'revealed', 'is-open', 'is-active');
-  }
-
-  function focusWithoutJump(node) {
-    if (!node || typeof node.focus !== 'function') return;
-    if (!node.hasAttribute('tabindex')) node.setAttribute('tabindex', '-1');
-    try {
-      node.focus({ preventScroll: true });
-    } catch (_error) {
-      node.focus();
-    }
-  }
-
-  function scrollToNode(node, block = 'center') {
-    if (!node || typeof node.scrollIntoView !== 'function') return;
-    const nodeHeight = node.getBoundingClientRect().height;
-    const resolvedBlock = block === 'center' && nodeHeight > window.innerHeight * 0.82
-      ? 'start'
-      : block;
-    node.scrollIntoView({
-      behavior: state.reducedMotion ? 'auto' : 'smooth',
-      block: resolvedBlock,
-      inline: 'nearest'
-    });
-  }
-
-  function isFirstLoveLine(node) {
-    if (!node) return false;
-    if (node.matches('[data-first-te-quiero]')) return true;
-    const phrase = (node.textContent || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es');
-    return phrase === 'te quiero.' || phrase === 'te quiero';
-  }
-
-  function maybeTriggerHaptic(node) {
-    if (state.hapticDone || !state.entered || !isFirstLoveLine(node)) return;
-
-    state.hapticDone = true;
-    writeSession(STORAGE_KEYS.haptic);
-
-    if (typeof navigator.vibrate === 'function') {
-      try {
-        navigator.vibrate(20);
-      } catch (_error) {
-        // Vibration is an enhancement; unsupported devices simply ignore it.
-      }
-    }
+    show(node);
+    node.style.setProperty('--reveal-delay', '0ms');
+    node.classList.add('is-visible', 'revealed');
+    node.dataset.revealed = 'true';
+    delete node.dataset.revealScheduled;
   }
 
   function revealNode(node, delay = 0) {
-    if (!node || node.dataset.revealScheduled === 'true' || node.classList.contains('is-visible')) return;
-
-    const wait = motionDuration(clamp(numeric(delay, 0), 0, 6000));
+    if (!node || node.dataset.revealed === 'true' || node.dataset.revealScheduled === 'true') return;
+    show(node);
     node.dataset.revealScheduled = 'true';
-    // Delay the class in JavaScript and let CSS own only the transition. This
-    // avoids applying data-delay twice when the stylesheet also reads the var.
     node.style.setProperty('--reveal-delay', '0ms');
 
-    later(() => {
-      showNode(node);
+    setTimer(() => {
       node.classList.add('is-visible', 'revealed');
       node.dataset.revealed = 'true';
-      maybeTriggerHaptic(node);
+      maybeVibrateForLove(node);
       node.dispatchEvent(new CustomEvent('andrea:revealed', { bubbles: true }));
-    }, wait);
+    }, duration(clamp(number(delay, 0), 0, 9000), 0));
   }
 
-  function revealSequence(nodes, step = 180, initialDelay = 0) {
-    const uniqueNodes = Array.from(new Set(nodes.filter(Boolean)));
-    uniqueNodes.forEach((node, index) => revealNode(node, initialDelay + (index * step)));
-    return initialDelay + Math.max(0, uniqueNodes.length - 1) * step;
+  function revealSequence(nodes, step = 220, initialDelay = 0) {
+    const items = Array.from(new Set(nodes.filter(Boolean)));
+    // Reserve the complete layout immediately; only opacity/transform changes.
+    items.forEach(show);
+    items.forEach((node, index) => revealNode(node, initialDelay + index * step));
+    return initialDelay + Math.max(0, items.length - 1) * step;
   }
 
-  function getRevealChildren(container) {
-    if (!container) return [];
-    const explicit = $$('[data-reveal], [data-ending-line], [data-sequence-item]', container)
-      .filter((node) => !node.closest('[hidden]') || node.closest('[hidden]') === container);
-    if (explicit.length) return explicit;
-
-    return $$('h2, h3, p, .cosmic-btn, button', container)
-      .filter((node) => node !== container && !node.closest('[hidden]'));
+  function revealChildren(container, step = 220, initialDelay = 0) {
+    if (!container) return 0;
+    const items = unique([
+      '[data-reveal]',
+      '[data-final-line]',
+      '[data-sequence-item]',
+      '[data-insight-word]',
+      'p'
+    ], container);
+    return revealSequence(items, duration(step, 0), duration(initialDelay, 0));
   }
 
-  function revealPanel(panel, options = {}) {
-    if (!panel) return 0;
-    const { step = 220, initialDelay = 80, scroll = true } = options;
-    showNode(panel);
-    panel.classList.add('is-active');
-    panel.setAttribute('aria-live', panel.getAttribute('aria-live') || 'polite');
-    const totalDelay = revealSequence(getRevealChildren(panel), step, initialDelay);
-
-    if (scroll) {
-      later(() => {
-        scrollToNode(panel);
-        focusWithoutJump(panel);
-      }, motionDuration(140, 0));
+  function maybeVibrateForLove(node) {
+    if (state.interactive.haptic || !state.entered || typeof navigator.vibrate !== 'function') return;
+    const text = (node.textContent || '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('es');
+    if (text !== 'te quiero.' && text !== 'te quiero') return;
+    state.interactive.haptic = true;
+    saveInteractiveState();
+    try {
+      navigator.vibrate(18);
+    } catch (_error) {
+      // Vibration is optional and never affects the story.
     }
-    return totalDelay;
+  }
+
+  function setMotionPreference(event) {
+    state.reducedMotion = Boolean(event ? event.matches : motionQuery.matches);
+    document.documentElement.classList.toggle('reduced-motion', state.reducedMotion);
+  }
+
+  function loadExperienceState() {
+    state.startedBefore = storageRead(STORAGE_KEYS.started) === 'true';
+    state.entered = state.startedBefore;
+    state.restoring = state.startedBefore;
+    state.savedScroll = Math.max(0, number(storageRead(STORAGE_KEYS.scroll), 0));
+    state.savedScene = storageRead(STORAGE_KEYS.scene) || '0';
+    state.currentScene = state.savedScene;
+    state.savedAudioTime = Math.max(0, number(storageRead(STORAGE_KEYS.music), 0));
+    state.interactive = parseInteractiveState(storageRead(STORAGE_KEYS.ending));
+  }
+
+  function saveInteractiveState() {
+    storageWrite(STORAGE_KEYS.ending, JSON.stringify(state.interactive));
+  }
+
+  function saveExperienceState() {
+    if (!state.entered) return;
+
+    storageWrite(STORAGE_KEYS.started, 'true');
+    storageWrite(
+      STORAGE_KEYS.scroll,
+      String(Math.round(state.restoring ? state.savedScroll : Math.max(0, window.scrollY)))
+    );
+    storageWrite(STORAGE_KEYS.scene, state.restoring ? state.savedScene : state.currentScene);
+
+    const currentAudioTime = state.audio && Number.isFinite(state.audio.currentTime)
+      ? state.audio.currentTime
+      : state.savedAudioTime;
+    storageWrite(STORAGE_KEYS.music, Math.max(0, currentAudioTime).toFixed(2));
+    saveInteractiveState();
+  }
+
+  function queueExperienceSave() {
+    if (!state.entered || state.restoring || state.scrollSaveTimer) return;
+    state.scrollSaveTimer = setTimer(() => {
+      state.scrollSaveTimer = 0;
+      saveExperienceState();
+    }, SCROLL_SAVE_DELAY);
+  }
+
+  function setAllButtonTypes() {
+    $$('button').forEach((button) => {
+      if (!button.hasAttribute('type')) button.type = 'button';
+    });
+  }
+
+  function waitForExperience(callback) {
+    if (state.entered) {
+      callback();
+      return;
+    }
+    document.addEventListener('andrea:experience-started', callback, { once: true });
   }
 
   function observeOnce(target, callback, options = {}) {
-    if (!target || typeof callback !== 'function') return null;
+    if (!target || typeof callback !== 'function') return;
 
-    const run = () => {
+    waitForExperience(() => {
       if (state.reducedMotion || !('IntersectionObserver' in window)) {
         callback(target);
         return;
@@ -273,89 +334,132 @@
           callback(entry.target, entry);
         });
       }, {
-        threshold: options.threshold ?? 0.22,
-        rootMargin: options.rootMargin || '0px 0px -12% 0px'
+        threshold: options.threshold === undefined ? 0.22 : options.threshold,
+        rootMargin: options.rootMargin || '0px 0px -10% 0px'
       });
 
       observer.observe(target);
       state.observers.push(observer);
-    };
-
-    if (state.entered) run();
-    else document.addEventListener('andrea:experience-started', run, { once: true });
-    return run;
+    });
   }
 
-  function setMotionPreference(event) {
-    state.reducedMotion = Boolean(event ? event.matches : motionQuery.matches);
-    document.documentElement.classList.toggle('reduced-motion', state.reducedMotion);
+  function ensureResumeAudioButton() {
+    let button = first(['#resume-audio', '[data-resume-audio]']);
+    if (button) return button;
+
+    button = document.createElement('button');
+    button.id = 'resume-audio';
+    button.type = 'button';
+    button.className = 'resume-audio';
+    button.dataset.resumeAudio = '';
+    button.textContent = 'Continuar con música ✦';
+    button.hidden = true;
+    document.body.appendChild(button);
+    return button;
   }
 
-  function updateAudioControl() {
-    const button = state.audioToggle;
-    if (!button) return;
+  function updateAudioControls() {
+    const toggle = state.audioToggle;
+    const resume = state.audioResume;
 
-    let icon = '🔊';
-    let label = 'Silenciar música';
-    let status = 'playing';
-
-    if (!state.audioAvailable) {
-      icon = '♪';
-      label = 'Música no disponible';
-      status = 'unavailable';
-    } else if (!state.audioStarted) {
-      icon = '🔊';
-      label = 'Reproducir música';
-      status = 'ready';
-    } else if (state.audioMuted || state.audio?.muted) {
-      icon = '🔇';
-      label = 'Activar música';
-      status = 'muted';
+    if (resume) {
+      const shouldOfferResume = state.entered
+        && state.audioAvailable
+        && (!state.audioHasPlayed || !state.audioPlaying);
+      resume.hidden = !shouldOfferResume;
+      resume.classList.toggle('is-visible', shouldOfferResume);
     }
 
-    button.dataset.audioState = status;
-    button.classList.toggle('is-muted', status === 'muted');
-    button.classList.toggle('is-visible', state.entered && status !== 'unavailable');
-    button.setAttribute('aria-label', label);
-    button.setAttribute('title', label);
-    button.setAttribute('aria-pressed', status === 'muted' ? 'true' : 'false');
+    if (!toggle) return;
+    const availableToToggle = state.entered
+      && state.audioAvailable
+      && state.audioHasPlayed
+      && state.audioPlaying;
+    toggle.hidden = !availableToToggle;
+    toggle.classList.toggle('is-visible', availableToToggle);
 
-    const iconNode = $('[data-audio-icon]', button);
-    const labelNode = $('[data-audio-label]', button);
+    const muted = state.audioMuted || Boolean(state.audio && state.audio.muted);
+    const icon = muted ? '🔇' : '🔊';
+    const label = muted ? 'Activar música' : 'Silenciar música';
+    toggle.setAttribute('aria-pressed', String(muted));
+    toggle.setAttribute('aria-label', label);
+    toggle.title = label;
+    toggle.dataset.audioState = muted ? 'muted' : state.audioPlaying ? 'playing' : 'paused';
+
+    const iconNode = $('[data-audio-icon]', toggle);
+    const labelNode = $('[data-audio-label]', toggle);
     if (iconNode) iconNode.textContent = icon;
-    else if (!button.children.length) button.textContent = icon;
-    if (labelNode) labelNode.textContent = label;
+    if (labelNode) labelNode.textContent = muted ? 'Música silenciada' : 'Música activada';
   }
 
   function markAudioUnavailable() {
-    if (!state.audioAvailable) return;
     state.audioAvailable = false;
-    state.audioStarted = false;
-    if (state.audioFadeFrame) cancelAnimationFrame(state.audioFadeFrame);
-    updateAudioControl();
-    if (state.audioToggle) state.audioToggle.hidden = true;
+    state.audioPlaying = false;
+    state.audioHasPlayed = false;
+    if (state.audioFadeFrame) {
+      cancelAnimationFrame(state.audioFadeFrame);
+      state.audioFadeFrame = 0;
+    }
     document.body.classList.add('audio-unavailable');
-    document.dispatchEvent(new CustomEvent('andrea:audio-unavailable'));
+    if (state.audioToggle) state.audioToggle.hidden = true;
+    if (state.audioResume) state.audioResume.hidden = true;
   }
 
-  function fadeAudioTo(targetVolume = 0.35, duration = 3200) {
+  function ensureAudioSource() {
+    const audio = state.audio;
+    if (!audio || !state.audioAvailable) return false;
+
+    const source = audio.dataset.src || AUDIO_SOURCE;
+    if (audio.getAttribute('src') !== source) {
+      audio.setAttribute('src', source);
+      try {
+        audio.load();
+      } catch (_error) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function restoreAudioPosition() {
+    const audio = state.audio;
+    if (!audio || state.savedAudioTime <= 0) return;
+
+    const applyPosition = () => {
+      let target = state.savedAudioTime;
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        target %= audio.duration;
+      }
+      try {
+        audio.currentTime = Math.max(0, target);
+      } catch (_error) {
+        // Some engines only allow seeking after metadata has settled.
+      }
+    };
+
+    if (audio.readyState >= 1) applyPosition();
+    else audio.addEventListener('loadedmetadata', applyPosition, { once: true });
+  }
+
+  function fadeAudio(target = AUDIO_VOLUME, fadeDuration = AUDIO_FADE_MS) {
     const audio = state.audio;
     if (!audio || !state.audioAvailable) return;
-
     if (state.audioFadeFrame) cancelAnimationFrame(state.audioFadeFrame);
+
     if (state.reducedMotion) {
-      audio.volume = clamp(targetVolume, 0, 1);
+      audio.volume = clamp(target, 0, 1);
+      state.audioFadeFrame = 0;
       return;
     }
 
     const from = clamp(audio.volume, 0, 1);
-    const to = clamp(targetVolume, 0, 1);
-    const startedAt = performance.now();
+    const to = clamp(target, 0, 1);
+    const began = performance.now();
 
     const tick = (now) => {
-      const progress = clamp((now - startedAt) / duration, 0, 1);
+      const progress = clamp((now - began) / Math.max(1, fadeDuration), 0, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      audio.volume = from + ((to - from) * eased);
+      audio.volume = from + (to - from) * eased;
       if (progress < 1 && !audio.paused) {
         state.audioFadeFrame = requestAnimationFrame(tick);
       } else {
@@ -368,127 +472,156 @@
 
   function startAudio() {
     const audio = state.audio;
-    if (!audio || !state.audioAvailable) return;
-
-    if (state.audioToggle) {
-      state.audioToggle.hidden = false;
-      state.audioToggle.classList.add('is-visible');
-    }
-    audio.muted = false;
-    audio.volume = 0;
-
-    let playResult;
-    try {
-      // This call remains synchronous with the user's Enter gesture so it is
-      // accepted by mobile autoplay policies.
-      playResult = audio.play();
-    } catch (_error) {
-      markAudioUnavailable();
+    if (!audio || !state.audioAvailable || !ensureAudioSource()) {
+      updateAudioControls();
       return;
     }
 
-    const onStarted = () => {
-      state.audioStarted = true;
-      state.audioMuted = false;
+    restoreAudioPosition();
+    audio.muted = false;
+    state.audioMuted = false;
+    audio.volume = 0;
+
+    let playback;
+    try {
+      // Kept synchronous with the Enter/resume gesture for mobile policies.
+      playback = audio.play();
+    } catch (_error) {
+      state.audioPlaying = false;
+      updateAudioControls();
+      return;
+    }
+
+    const onPlaying = () => {
+      state.audioHasPlayed = true;
+      state.audioPlaying = true;
       document.body.classList.add('audio-playing');
-      updateAudioControl();
-      fadeAudioTo(0.35);
+      document.body.classList.remove('audio-needs-gesture');
+      updateAudioControls();
+      fadeAudio(AUDIO_VOLUME, AUDIO_FADE_MS);
     };
 
-    if (playResult && typeof playResult.then === 'function') {
-      playResult.then(onStarted).catch(markAudioUnavailable);
+    if (playback && typeof playback.then === 'function') {
+      playback.then(onPlaying).catch(() => {
+        state.audioPlaying = false;
+        document.body.classList.add('audio-needs-gesture');
+        updateAudioControls();
+      });
     } else {
-      onStarted();
+      onPlaying();
     }
+  }
+
+  function restoreAudio() {
+    state.savedAudioTime = Math.max(0, number(storageRead(STORAGE_KEYS.music), state.savedAudioTime));
+    // Deliberately do not attach src or call play here. A restored page only
+    // offers one quiet gesture-based control.
+    state.audioHasPlayed = false;
+    state.audioPlaying = false;
+    updateAudioControls();
   }
 
   function initAudio() {
-    state.audioToggle = first('#audio-toggle', '[data-audio-toggle]', '.audio-toggle');
-    let audio = first('#background-music', '[data-background-audio]', 'audio[data-music]');
+    const audio = document.querySelector('#background-music');
+    if (!audio) return;
 
-    if (!audio) {
-      audio = document.createElement('audio');
-      audio.id = 'background-music';
-      audio.src = 'assets/music.mp3';
-      audio.preload = 'none';
-      audio.hidden = true;
-      document.body.appendChild(audio);
-    }
-
-    state.audio = audio;
+    // Remove any legacy nested source so only the declared data-src is used.
+    $$('source', audio).forEach((source) => source.remove());
+    audio.removeAttribute('src');
+    audio.dataset.src = AUDIO_SOURCE;
+    audio.preload = 'metadata';
     audio.loop = true;
-    audio.preload = audio.preload || 'metadata';
     audio.setAttribute('playsinline', '');
     audio.volume = 0;
-    audio.addEventListener('error', markAudioUnavailable, { once: true });
-    audio.addEventListener('ended', () => {
-      if (!audio.loop) state.audioStarted = false;
-      updateAudioControl();
+
+    state.audio = audio;
+    state.audioToggle = first(['#audio-toggle', '[data-audio-toggle]', '.audio-toggle']);
+    state.audioResume = ensureResumeAudioButton();
+
+    audio.addEventListener('error', markAudioUnavailable);
+    audio.addEventListener('playing', () => {
+      state.audioPlaying = true;
+      state.audioHasPlayed = true;
+      updateAudioControls();
+    });
+    audio.addEventListener('pause', () => {
+      state.audioPlaying = false;
+      if (state.entered && !document.hidden && state.audioHasPlayed) {
+        document.body.classList.add('audio-needs-gesture');
+      }
+      updateAudioControls();
+    });
+    audio.addEventListener('timeupdate', () => {
+      const now = Date.now();
+      if (now - state.audioSaveAt < 3000 || !Number.isFinite(audio.currentTime)) return;
+      state.audioSaveAt = now;
+      state.savedAudioTime = audio.currentTime;
+      storageWrite(STORAGE_KEYS.music, audio.currentTime.toFixed(2));
     });
 
     if (state.audioToggle) {
-      state.audioToggle.hidden = true;
+      state.audioToggle.type = 'button';
       state.audioToggle.addEventListener('click', () => {
         if (!state.audioAvailable) return;
-        if (!state.audioStarted || audio.paused) {
+        if (!state.audioHasPlayed || audio.paused) {
           startAudio();
           return;
         }
-
         state.audioMuted = !state.audioMuted;
         audio.muted = state.audioMuted;
-        updateAudioControl();
+        updateAudioControls();
       });
-      updateAudioControl();
     }
+
+    state.audioResume.type = 'button';
+    state.audioResume.addEventListener('click', startAudio);
+    restoreAudio();
   }
 
   function targetStarCount() {
-    if (window.innerWidth <= 420) return state.reducedMotion ? 40 : 48;
-    if (window.innerWidth <= 900) return state.reducedMotion ? 46 : 60;
-    return state.reducedMotion ? 52 : 74;
+    if (Math.min(window.innerWidth, window.innerHeight) <= 480) return 48;
+    if (window.innerWidth <= 900) return 60;
+    return 72;
   }
 
-  function makeBackgroundStar(index) {
+  function createBackgroundStar(index) {
     const star = document.createElement('span');
-    const size = 0.7 + (seeded(index, 3) * 2.1);
-    const opacity = 0.22 + (seeded(index, 4) * 0.62);
-    const x = seeded(index, 1) * 100;
-    const y = seeded(index, 2) * 100;
-    const duration = 3.8 + (seeded(index, 5) * 7.5);
-    const delay = seeded(index, 6) * -8;
-    const depth = 0.25 + (seeded(index, 7) * 0.75);
+    const depthIndex = index % 3;
+    const size = depthIndex === 0
+      ? .55 + seeded(index, 2) * .65
+      : depthIndex === 1
+        ? .9 + seeded(index, 3) * 1.05
+        : 1.35 + seeded(index, 4) * 1.5;
+    const opacity = .2 + seeded(index, 5) * (depthIndex === 2 ? .68 : .48);
 
-    star.className = `star star--${size > 2.2 ? 'bright' : size > 1.3 ? 'medium' : 'small'}`;
+    star.className = 'star star--' + ['far', 'middle', 'near'][depthIndex];
     star.dataset.generatedStar = 'true';
-    star.dataset.depth = depth.toFixed(2);
+    star.dataset.depth = String(depthIndex + 1);
     star.setAttribute('aria-hidden', 'true');
-    star.style.left = `${x.toFixed(3)}%`;
-    star.style.top = `${y.toFixed(3)}%`;
-    star.style.setProperty('--x', `${x.toFixed(3)}%`);
-    star.style.setProperty('--y', `${y.toFixed(3)}%`);
-    star.style.setProperty('--size', `${size.toFixed(2)}px`);
+    star.style.left = (seeded(index, 6) * 100).toFixed(3) + '%';
+    star.style.top = (seeded(index, 7) * 100).toFixed(3) + '%';
+    star.style.setProperty('--size', size.toFixed(2) + 'px');
     star.style.setProperty('--opacity', opacity.toFixed(2));
-    star.style.setProperty('--twinkle-duration', `${duration.toFixed(2)}s`);
-    star.style.setProperty('--twinkle-delay', `${delay.toFixed(2)}s`);
-    star.style.setProperty('--drift', `${(2 + seeded(index, 8) * 7).toFixed(2)}px`);
+    star.style.setProperty('--twinkle-duration', (5 + seeded(index, 8) * 8).toFixed(2) + 's');
+    star.style.setProperty('--twinkle-delay', (-seeded(index, 9) * 9).toFixed(2) + 's');
+    star.style.setProperty('--drift', (1 + seeded(index, 10) * 7).toFixed(2) + 'px');
     return star;
   }
 
   function syncBackgroundStars(container) {
     if (!container) return;
-    const desired = targetStarCount();
-    const stars = $$('[data-generated-star]', container);
+    const expected = targetStarCount();
+    const current = $$('[data-generated-star]', container);
 
-    if (stars.length > desired) {
-      stars.slice(desired).forEach((star) => star.remove());
+    if (current.length > expected) {
+      current.slice(expected).forEach((star) => star.remove());
       return;
     }
 
-    if (stars.length < desired) {
+    if (current.length < expected) {
       const fragment = document.createDocumentFragment();
-      for (let index = stars.length; index < desired; index += 1) {
-        fragment.appendChild(makeBackgroundStar(index));
+      for (let index = current.length; index < expected; index += 1) {
+        fragment.appendChild(createBackgroundStar(index));
       }
       container.appendChild(fragment);
     }
@@ -496,1023 +629,1396 @@
 
   function launchShootingStar(container) {
     if (!container || state.reducedMotion || document.hidden || !state.entered) return;
-    if ($('.shooting-star', container)) return;
+    if ($('[data-generated-shooting-star]', container)) return;
 
-    const shootingStar = document.createElement('span');
-    const startX = -12 + (Math.random() * 42);
-    const startY = 5 + (Math.random() * 40);
-    const travelX = Math.max(window.innerWidth * 0.85, 340);
-    const travelY = 130 + (Math.random() * 170);
-    const duration = 1250 + (Math.random() * 750);
+    const star = document.createElement('span');
+    const distanceX = Math.max(window.innerWidth * .82, 330);
+    const distanceY = 115 + seeded(Date.now() % 103, 4) * 150;
+    const time = 1400 + seeded(Date.now() % 89, 7) * 650;
 
-    shootingStar.className = 'shooting-star';
-    shootingStar.setAttribute('aria-hidden', 'true');
-    shootingStar.style.left = `${startX}%`;
-    shootingStar.style.top = `${startY}%`;
-    shootingStar.style.setProperty('--shoot-duration', `${duration}ms`);
-    container.appendChild(shootingStar);
+    star.className = 'shooting-star';
+    star.dataset.generatedShootingStar = 'true';
+    star.setAttribute('aria-hidden', 'true');
+    star.style.left = (-8 + seeded(Date.now() % 71, 2) * 38).toFixed(2) + '%';
+    star.style.top = (5 + seeded(Date.now() % 67, 5) * 37).toFixed(2) + '%';
+    container.appendChild(star);
 
-    if (typeof shootingStar.animate === 'function') {
-      const animation = shootingStar.animate([
-        { opacity: 0, transform: 'translate3d(0, 0, 0) rotate(-18deg) scaleX(.35)' },
-        { opacity: 0.85, offset: 0.14 },
-        { opacity: 0, transform: `translate3d(${travelX}px, ${travelY}px, 0) rotate(-18deg) scaleX(1)` }
+    if (!state.reducedMotion && typeof star.animate === 'function') {
+      const animation = star.animate([
+        { opacity: 0, transform: 'translate3d(0,0,0) rotate(-18deg) scaleX(.35)' },
+        { opacity: .82, offset: .15 },
+        { opacity: 0, transform: 'translate3d(' + distanceX.toFixed(0) + 'px,' + distanceY.toFixed(0) + 'px,0) rotate(-18deg) scaleX(1)' }
       ], {
-        duration,
+        duration: time,
         easing: 'cubic-bezier(.2,.65,.3,1)',
         fill: 'forwards'
       });
-      animation.finished.catch(() => {}).finally(() => shootingStar.remove());
+      animation.finished.catch(() => {}).finally(() => star.remove());
     } else {
-      shootingStar.classList.add('is-shooting');
-      later(() => shootingStar.remove(), duration + 100);
+      setTimer(() => star.remove(), time);
     }
   }
 
-  function scheduleShootingStar(container, firstLaunch = false) {
-    if (!container || state.reducedMotion) return;
-    window.clearTimeout(state.shootingTimer);
-    const delay = firstLaunch ? 4500 : 8500 + (Math.random() * 7500);
-    state.shootingTimer = window.setTimeout(() => {
+  function scheduleShootingStars(container, soon = false) {
+    clearTimer(state.shootingTimer);
+    state.shootingTimer = 0;
+    if (!container || !state.entered || document.hidden || state.reducedMotion) return;
+
+    state.shootingActive = true;
+    state.shootingTimer = setTimer(() => {
+      state.shootingTimer = 0;
       launchShootingStar(container);
-      scheduleShootingStar(container);
-    }, delay);
+      scheduleShootingStars(container, false);
+    }, soon ? 5200 : 10000 + Math.random() * 8000);
   }
 
   function createStars() {
-    const container = first('#star-field', '[data-star-field]', '.starfield');
+    const container = first(['#star-field', '[data-star-field]', '.starfield']);
     if (!container) return;
-
     syncBackgroundStars(container);
-    let resizeTimer = 0;
+
     window.addEventListener('resize', () => {
-      window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(() => syncBackgroundStars(container), 180);
+      clearTimer(state.resizeTimer);
+      state.resizeTimer = setTimer(() => {
+        state.resizeTimer = 0;
+        syncBackgroundStars(container);
+      }, 180);
     }, { passive: true });
 
-    const begin = () => {
-      if (state.shootingStarted) return;
-      state.shootingStarted = true;
-      scheduleShootingStar(container, true);
-    };
-    if (state.entered) begin();
-    else document.addEventListener('andrea:experience-started', begin, { once: true });
-
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && state.entered && !state.reducedMotion) scheduleShootingStar(container);
-    });
-  }
-
-  function prepareRevealDelays(nodes) {
-    const sceneCounters = new WeakMap();
-    nodes.forEach((node) => {
-      const scene = node.closest('.scene, [data-scene]') || document.body;
-      const order = sceneCounters.get(scene) || 0;
-      sceneCounters.set(scene, order + 1);
-      node.style.setProperty('--reveal-order', String(order));
-
-      if (!node.hasAttribute('data-delay')) {
-        const parentStagger = numeric(node.parentElement?.dataset.stagger, 0);
-        if (parentStagger > 0) node.dataset.delay = String(Math.min(order * parentStagger, 1800));
-      }
-    });
+    waitForExperience(() => scheduleShootingStars(container, true));
   }
 
   function initScrollAnimations() {
-    const selector = [
-      '[data-reveal]',
-      '.fade-in',
-      '.fade-up',
-      '.blur-in',
-      '.reveal-text',
-      '.star-reveal',
-      '.scale-soft'
-    ].join(',');
+    const revealNodes = unique(['[data-reveal]', '.reveal-text', '.star-reveal']);
 
-    const nodes = $$(selector).filter((node) => {
-      if (node.closest('.door, .intro-screen, [data-door]')) return false;
-      if (node.closest('[hidden]')) return false;
-      return true;
-    });
+    waitForExperience(() => {
+      const candidates = revealNodes.filter((node) => !node.closest('[hidden]'));
+      if (state.reducedMotion || !('IntersectionObserver' in window)) {
+        candidates.forEach(revealImmediately);
+      } else {
+        const revealObserver = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            revealObserver.unobserve(entry.target);
+            revealNode(entry.target, number(entry.target.dataset.delay, 0));
+          });
+        }, {
+          threshold: .14,
+          rootMargin: '0px 0px -8% 0px'
+        });
 
-    prepareRevealDelays(nodes);
-
-    const startObserving = () => {
-      if (!('IntersectionObserver' in window)) {
-        nodes.forEach((node) => revealNode(node, numeric(node.dataset.delay, 0)));
-        return;
+        candidates.forEach((node) => revealObserver.observe(node));
+        state.observers.push(revealObserver);
       }
 
-      const observer = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          const node = entry.target;
-          observer.unobserve(node);
-          revealNode(node, numeric(node.dataset.delay, 0));
-        });
-      }, {
-        threshold: state.reducedMotion ? 0.02 : 0.16,
-        rootMargin: '0px 0px -8% 0px'
-      });
+      const scenes = unique(['[data-scene]', '.scene']);
+      if (!scenes.length || !('IntersectionObserver' in window)) return;
 
-      nodes.forEach((node) => observer.observe(node));
-      state.observers.push(observer);
-
-      const scenes = $$('.scene, [data-scene]');
       const sceneObserver = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
-          entry.target.classList.toggle('is-current', entry.isIntersecting && entry.intersectionRatio > 0.12);
+          state.sceneRatios.set(entry.target, entry.isIntersecting ? entry.intersectionRatio : 0);
+          entry.target.classList.toggle('is-current', entry.isIntersecting && entry.intersectionRatio >= .12);
         });
-      }, { threshold: [0.12, 0.45, 0.75] });
+
+        let bestScene = null;
+        let bestRatio = 0;
+        state.sceneRatios.forEach((ratio, scene) => {
+          if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestScene = scene;
+          }
+        });
+
+        if (bestScene && bestRatio > 0) {
+          state.currentScene = bestScene.dataset.scene || bestScene.id || state.currentScene;
+          document.body.classList.toggle('andrea-is-current', bestScene.id === 'scene-10');
+          queueExperienceSave();
+        }
+      }, { threshold: [0, .12, .25, .5, .75] });
+
       scenes.forEach((scene) => sceneObserver.observe(scene));
       state.observers.push(sceneObserver);
-    };
+    });
+  }
 
-    if (state.entered) startObserving();
-    else document.addEventListener('andrea:experience-started', startObserving, { once: true });
+  function applyExpandedPanel(button, panel, className) {
+    if (button) {
+      button.setAttribute('aria-expanded', 'true');
+      button.classList.add('is-complete');
+      button.disabled = true;
+    }
+    if (!panel) return;
+    show(panel);
+    panel.classList.add('is-active');
+    if (className) panel.classList.add(className);
+    unique(['[data-reveal]', '[data-insight-word]', 'p'], panel).forEach(revealImmediately);
   }
 
   function initInitiativeMoment() {
-    const button = first('#understood-button', '[data-understood]');
-    const orbit = first('#initiative-orbit', '[data-initiative-orbit]');
-    if (!orbit) return;
+    const button = document.querySelector('#insight-star');
+    const panel = document.querySelector('#insight-reveal');
+    if (!button || !panel) return;
 
-    const activate = () => {
-      if (orbit.dataset.activated === 'true') return;
-      orbit.dataset.activated = 'true';
-      showNode(orbit);
-      orbit.classList.add('is-active');
+    button.type = 'button';
+    button.setAttribute('aria-expanded', 'false');
 
-      const centerStar = first('#initiative-star', '[data-initiative-star]');
-      if (centerStar) revealNode(centerStar, 80);
-      const words = $$('[data-initiative-word], .initiative-word, .orbit-word', orbit);
-      revealSequence(words, motionDuration(190, 0), motionDuration(280, 0));
-
-      if (button) {
-        button.setAttribute('aria-expanded', 'true');
-        button.disabled = true;
-      }
-      later(() => scrollToNode(orbit), motionDuration(180, 0));
-    };
-
-    if (button) {
-      button.setAttribute('aria-controls', button.getAttribute('aria-controls') || orbit.id || 'initiative-orbit');
-      button.setAttribute('aria-expanded', 'false');
-      button.addEventListener('click', activate);
-    } else if (!orbit.hidden) {
-      observeOnce(orbit, activate);
+    if (state.interactive.insight) {
+      applyExpandedPanel(button, panel, 'is-understood');
+      return;
     }
+
+    button.addEventListener('click', () => {
+      if (state.interactive.insight) return;
+      state.interactive.insight = true;
+      button.setAttribute('aria-expanded', 'true');
+      button.classList.add('is-lit', 'is-complete');
+      button.disabled = true;
+      show(panel);
+      panel.classList.add('is-active', 'is-understood');
+
+      const words = unique(['[data-insight-word]'], panel);
+      const copy = unique(['[data-reveal]', 'p'], panel).filter((node) => !words.includes(node));
+      revealSequence(words, duration(145, 0), duration(220, 0));
+      revealSequence(copy, duration(260, 0), duration(900, 0));
+      saveInteractiveState();
+    });
   }
 
-  function animateRewindItems(field, duration) {
-    if (!field || state.reducedMotion || typeof Element.prototype.animate !== 'function') return;
+  function initProofMoment() {
+    const button = first(['#proof-button', '[data-proof-button]']);
+    const panel = first(['#proof-reveal', '[data-proof-reveal]']);
+    if (!button || !panel) return;
 
-    const items = $$('[data-rewind-item], [data-initiative-word], .initiative-word, .orbit-word, .star', field)
-      .slice(0, 64)
-      .reverse();
+    button.type = 'button';
+    button.setAttribute('aria-expanded', 'false');
 
-    items.forEach((item, index) => {
-      const isWord = item.matches('[data-initiative-word], .initiative-word, .orbit-word');
-      const computedOpacity = numeric(getComputedStyle(item).opacity, 1);
-      const angle = (index / Math.max(items.length, 1)) * Math.PI * 2;
-      const distance = 18 + ((index % 6) * 5);
+    if (state.interactive.proof) {
+      applyExpandedPanel(button, panel, 'is-proven');
+      return;
+    }
 
-      item.animate([
-        { opacity: computedOpacity, filter: 'blur(0)', transform: 'translate3d(0,0,0) scale(1)' },
-        {
-          opacity: isWord ? 0.12 : 0.65,
-          filter: isWord ? 'blur(4px)' : 'blur(0)',
-          transform: `translate3d(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px, 0) scale(.72)`,
-          offset: 0.62
-        },
-        { opacity: isWord ? 0 : 0.2, filter: 'blur(7px)', transform: 'translate3d(0,0,0) scale(.35)' }
+    button.addEventListener('click', () => {
+      if (state.interactive.proof) return;
+      state.interactive.proof = true;
+      button.disabled = true;
+      button.setAttribute('aria-expanded', 'true');
+      button.classList.add('is-complete');
+      show(panel);
+      panel.classList.add('is-active', 'is-proven');
+      revealChildren(panel, 420, 120);
+      saveInteractiveState();
+    });
+  }
+
+  function svgElement(name, attributes = {}) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', name);
+    Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value)));
+    return node;
+  }
+
+  function sunflowerPoint(centerX, centerY, angle, radial, tangent = 0) {
+    const radians = angle * Math.PI / 180;
+    const radialX = Math.cos(radians);
+    const radialY = Math.sin(radians);
+    const tangentX = -radialY;
+    const tangentY = radialX;
+    return [
+      centerX + radialX * radial + tangentX * tangent,
+      centerY + radialY * radial + tangentY * tangent
+    ];
+  }
+
+  function pathPoint(point) {
+    return point[0].toFixed(2) + ' ' + point[1].toFixed(2);
+  }
+
+  function createOrganicPetalPath(index, centerX, centerY) {
+    const baseAngle = -90 + index * 15;
+    const angle = baseAngle + (seeded(index, 31) - .5) * 4.6;
+    const length = 77 + seeded(index, 32) * 22;
+    const width = 9.5 + seeded(index, 33) * 6;
+    const lean = (seeded(index, 34) - .5) * 8;
+
+    const startLeft = sunflowerPoint(centerX, centerY, angle, 21, -4.5);
+    const controlLeftOne = sunflowerPoint(centerX, centerY, angle, 43, -width);
+    const controlLeftTwo = sunflowerPoint(centerX, centerY, angle, length * .76, -width * .6 + lean);
+    const tip = sunflowerPoint(centerX, centerY, angle, length, lean * .28);
+    const controlRightTwo = sunflowerPoint(centerX, centerY, angle, length * .7, width * .58 + lean);
+    const controlRightOne = sunflowerPoint(centerX, centerY, angle, 41, width);
+    const startRight = sunflowerPoint(centerX, centerY, angle, 21, 4.5);
+
+    return 'M ' + pathPoint(startLeft)
+      + ' C ' + pathPoint(controlLeftOne) + ', ' + pathPoint(controlLeftTwo) + ', ' + pathPoint(tip)
+      + ' C ' + pathPoint(controlRightTwo) + ', ' + pathPoint(controlRightOne) + ', ' + pathPoint(startRight)
+      + ' Q ' + centerX + ' ' + centerY + ', ' + pathPoint(startLeft) + ' Z';
+  }
+
+  function createSunflowerSvg(miniature = false) {
+    const svg = svgElement('svg', {
+      viewBox: '0 0 320 320',
+      role: 'img',
+      'aria-label': miniature ? 'Un pequeño girasol entre las estrellas' : 'Un girasol dorado creciendo entre las estrellas',
+      preserveAspectRatio: 'xMidYMid meet'
+    });
+    svg.classList.add('cosmic-sunflower__svg', 'sunflower-svg');
+    if (miniature) svg.classList.add('sunflower-svg--miniature');
+
+    const petals = svgElement('g', { class: 'sunflower-petals', 'aria-hidden': 'true' });
+    const palette = ['#d99e32', '#e7b64c', '#c98728', '#efc663', '#dca63c', '#bc7924'];
+
+    for (let index = 0; index < 24; index += 1) {
+      const petal = svgElement('path', {
+        d: createOrganicPetalPath(index, 160, 151),
+        fill: palette[index % palette.length],
+        class: 'sunflower-petal sunflower-petal--visual',
+        'data-petal-index': index,
+        opacity: (.72 + seeded(index, 35) * .24).toFixed(2)
+      });
+      petal.style.setProperty('--petal-delay', (620 + index * 82) + 'ms');
+      petal.style.setProperty('--petal-scale', (.94 + seeded(index, 36) * .1).toFixed(3));
+      petal.style.transformBox = 'fill-box';
+      petal.style.transformOrigin = 'center bottom';
+      petals.appendChild(petal);
+    }
+    svg.appendChild(petals);
+
+    const origin = svgElement('circle', {
+      cx: 160,
+      cy: 151,
+      r: 5,
+      class: 'sunflower-origin',
+      fill: '#e7b64c',
+      'aria-hidden': 'true'
+    });
+    svg.appendChild(origin);
+
+    const center = svgElement('g', { class: 'sunflower-center-art', 'aria-hidden': 'true' });
+    center.style.transformBox = 'fill-box';
+    center.style.transformOrigin = 'center';
+    center.appendChild(svgElement('circle', {
+      cx: 160,
+      cy: 151,
+      r: 35,
+      fill: '#3d281d',
+      stroke: '#a86f28',
+      'stroke-width': 2.2
+    }));
+    center.appendChild(svgElement('circle', {
+      cx: 160,
+      cy: 151,
+      r: 29,
+      fill: '#55331e',
+      opacity: .96
+    }));
+
+    for (let index = 0; index < 58; index += 1) {
+      const radius = 3.55 * Math.sqrt(index);
+      const angle = index * 137.508 * Math.PI / 180;
+      center.appendChild(svgElement('circle', {
+        cx: (160 + Math.cos(angle) * radius).toFixed(2),
+        cy: (151 + Math.sin(angle) * radius).toFixed(2),
+        r: (.9 + seeded(index, 38) * .72).toFixed(2),
+        fill: index % 3 === 0 ? '#c68b38' : index % 3 === 1 ? '#8d5a28' : '#e0ad51',
+        opacity: (.56 + seeded(index, 39) * .37).toFixed(2)
+      }));
+    }
+    svg.appendChild(center);
+    return svg;
+  }
+
+  function animateSunflowerBloom(wrapper, svg) {
+    if (!wrapper || !svg || wrapper.dataset.bloomed === 'true') return;
+    wrapper.dataset.bloomed = 'true';
+    wrapper.classList.add('is-blooming');
+
+    const origin = $('.sunflower-origin', svg);
+    const center = $('.sunflower-center-art', svg);
+    const petals = $$('.sunflower-petal--visual', svg);
+
+    if (state.reducedMotion || typeof svg.animate !== 'function') {
+      [origin, center].concat(petals).filter(Boolean).forEach((node) => {
+        node.style.opacity = '1';
+        node.style.transform = 'none';
+      });
+      wrapper.classList.add('is-bloomed');
+      enableSunflowerPetals(wrapper);
+      enableSunflowerCenter(wrapper);
+      return;
+    }
+
+    if (origin) {
+      origin.animate([
+        { opacity: 0, transform: 'scale(.15)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ], { duration: 900, easing: 'cubic-bezier(.2,.75,.25,1)', fill: 'both' });
+    }
+
+    if (center) {
+      center.animate([
+        { opacity: 0, transform: 'scale(.08)' },
+        { opacity: 1, transform: 'scale(1)' }
+      ], { duration: 1450, delay: 420, easing: 'cubic-bezier(.16,.72,.24,1)', fill: 'both' });
+    }
+
+    petals.forEach((petal, index) => {
+      petal.animate([
+        { opacity: 0, transform: 'scale(.08) rotate(' + ((index % 2 ? 1 : -1) * 3) + 'deg)' },
+        { opacity: number(petal.getAttribute('opacity'), .9), transform: 'scale(1) rotate(0deg)' }
       ], {
-        duration: Math.max(350, duration - Math.min(index * 12, 450)),
-        delay: Math.min(index * 8, 260),
-        easing: 'cubic-bezier(.55,.05,.35,1)',
-        fill: 'forwards'
+        duration: 980 + seeded(index, 41) * 320,
+        delay: 760 + index * 86,
+        easing: 'cubic-bezier(.17,.68,.2,1)',
+        fill: 'both'
+      });
+    });
+
+    setTimer(() => {
+      wrapper.classList.add('is-bloomed');
+      enableSunflowerPetals(wrapper);
+    }, 1700);
+
+    clearTimer(state.sunflowerUnlockTimer);
+    state.sunflowerUnlockTimer = setTimer(() => {
+      state.sunflowerUnlockTimer = 0;
+      enableSunflowerCenter(wrapper);
+    }, 4800);
+  }
+
+  function enableSunflowerPetals(wrapper) {
+    if (!wrapper) return;
+    $$('[data-sunflower-petal]', wrapper).forEach((button) => {
+      button.disabled = false;
+      button.removeAttribute('aria-hidden');
+    });
+    wrapper.classList.add('petals-are-ready');
+  }
+
+  function enableSunflowerCenter(wrapper) {
+    const centerButton = first(['#sunflower-center', '[data-sunflower-center]'], wrapper || document);
+    const instruction = first(['#sunflower-instruction', '[data-sunflower-instruction]'], wrapper || document);
+    if (!centerButton || state.interactive.sunflowerCenter) return;
+
+    show(centerButton);
+    centerButton.disabled = false;
+    centerButton.setAttribute('aria-expanded', 'false');
+    centerButton.classList.add('is-ready');
+    if (instruction) {
+      show(instruction);
+      instruction.classList.add('is-visible');
+    }
+    if (wrapper) wrapper.classList.add('center-is-ready');
+  }
+
+  function revealSunflowerWord(wrapper, button, wordNode, announce, index) {
+    if (!wrapper || !button || !wordNode) return;
+    if (!state.interactive.sunflowerPetals.includes(index)) {
+      state.interactive.sunflowerPetals.push(index);
+      state.interactive.sunflowerPetals.sort((a, b) => a - b);
+    }
+    button.classList.add('is-chosen');
+    button.setAttribute('aria-pressed', 'true');
+    show(wordNode);
+    wordNode.classList.add('is-visible', 'revealed');
+    if (announce) announce.textContent = SUNFLOWER_WORDS[index];
+    wrapper.classList.add('has-explored-petals');
+    saveInteractiveState();
+  }
+
+  function initSunflowerPetals(wrapper, mount) {
+    if (!wrapper || !mount) return;
+    let hitLayer = first(['[data-sunflower-petal-hits]', '.sunflower-petal-hits'], wrapper);
+    if (!hitLayer) {
+      hitLayer = document.createElement('div');
+      hitLayer.className = 'sunflower-petal-hits';
+      hitLayer.dataset.sunflowerPetalHits = '';
+      mount.after(hitLayer);
+    }
+    const wordsLayer = first(['[data-sunflower-words]', '.sunflower-words'], wrapper) || wrapper;
+    let buttons = $$('[data-sunflower-petal]', hitLayer);
+    let words = $$('[data-sunflower-word]', wordsLayer);
+    const announce = first(['#sunflower-word-live', '[data-sunflower-word-live]'], wrapper);
+
+    if (!buttons.length) {
+      const selectedPetals = [0, 3, 6, 9, 12, 15, 18, 21];
+      selectedPetals.forEach((petalIndex, index) => {
+        const angle = -90 + petalIndex * 15;
+        const radians = angle * Math.PI / 180;
+        const button = document.createElement('button');
+        const spark = document.createElement('span');
+        const x = 50 + Math.cos(radians) * 31;
+        const y = 47.2 + Math.sin(radians) * 31;
+
+        button.type = 'button';
+        button.className = 'sunflower-petal-hit';
+        button.dataset.sunflowerPetal = '';
+        button.dataset.index = String(index);
+        button.dataset.word = SUNFLOWER_WORDS[index];
+        button.setAttribute('aria-label', 'Revelar: ' + SUNFLOWER_WORDS[index]);
+        button.setAttribute('aria-pressed', 'false');
+        button.setAttribute('aria-hidden', 'true');
+        button.disabled = true;
+        button.style.left = x.toFixed(2) + '%';
+        button.style.top = y.toFixed(2) + '%';
+        button.style.setProperty('--petal-angle', angle + 'deg');
+        button.style.setProperty('--petal-x', x.toFixed(2) + '%');
+        button.style.setProperty('--petal-y', y.toFixed(2) + '%');
+        spark.className = 'sunflower-petal-hit__spark';
+        spark.setAttribute('aria-hidden', 'true');
+        button.appendChild(spark);
+        hitLayer.appendChild(button);
+
+        const word = document.createElement('span');
+        const wordRadius = index % 2 ? 41 : 39;
+        const wordX = 50 + Math.cos(radians) * wordRadius;
+        const wordY = 47.2 + Math.sin(radians) * wordRadius;
+        word.className = 'sunflower-word';
+        word.dataset.sunflowerWord = '';
+        word.dataset.index = String(index);
+        word.textContent = SUNFLOWER_WORDS[index];
+        word.hidden = true;
+        word.style.left = wordX.toFixed(2) + '%';
+        word.style.top = wordY.toFixed(2) + '%';
+        word.style.setProperty('--word-x', wordX.toFixed(2) + '%');
+        word.style.setProperty('--word-y', wordY.toFixed(2) + '%');
+        wordsLayer.appendChild(word);
+      });
+
+      buttons = $$('[data-sunflower-petal]', hitLayer);
+      words = $$('[data-sunflower-word]', wordsLayer);
+    }
+
+    buttons.forEach((button, index) => {
+      button.type = 'button';
+      const resolvedIndex = number(button.dataset.index, index);
+      const wordNode = words.find((word) => number(word.dataset.index, -1) === resolvedIndex) || words[index];
+
+      if (state.interactive.sunflowerPetals.includes(resolvedIndex)) {
+        button.classList.add('is-chosen');
+        button.setAttribute('aria-pressed', 'true');
+        if (wordNode) revealImmediately(wordNode);
+      }
+
+      button.addEventListener('click', () => {
+        revealSunflowerWord(wrapper, button, wordNode, announce, resolvedIndex);
       });
     });
   }
 
-  function initRewindEffect() {
-    const button = first('#rewind-button', '[data-rewind]');
-    if (!button) return;
+  function openSunflowerCenter(wrapper, centerButton, revelation, instruction, restoring = false) {
+    if (!wrapper || !centerButton || !revelation) return;
+    state.interactive.sunflowerCenter = true;
+    clearTimer(state.sunflowerUnlockTimer);
+    state.sunflowerUnlockTimer = 0;
+    centerButton.disabled = true;
+    centerButton.setAttribute('aria-expanded', 'true');
+    centerButton.classList.add('is-open');
+    wrapper.classList.add('is-zoomed', 'has-open-center');
+    if (instruction) instruction.hidden = true;
+    show(revelation);
+    revelation.classList.add('is-active');
 
-    const field = first('#rewind-field', '[data-rewind-field]', '#initiative-orbit', '[data-initiative-orbit]');
-    const result = first('#rewind-result', '[data-rewind-result]');
+    const lines = unique(['[data-reveal]', '[data-sunflower-line]', 'p'], revelation);
+    if (restoring) {
+      lines.forEach(revealImmediately);
+    } else {
+      revealSequence(lines, duration(720, 0), duration(350, 0));
+      const svg = $('.sunflower-svg', wrapper);
+      if (svg && !state.reducedMotion && typeof svg.animate === 'function') {
+        svg.animate([
+          { transform: 'scale(1)' },
+          { transform: 'scale(1.075)' }
+        ], {
+          duration: 1800,
+          easing: 'cubic-bezier(.2,.7,.2,1)',
+          fill: 'forwards'
+        });
+      }
+    }
+    saveInteractiveState();
+  }
 
-    button.addEventListener('click', () => {
-      if (button.dataset.complete === 'true') return;
-      button.dataset.complete = 'true';
-      button.disabled = true;
-      button.setAttribute('aria-busy', 'true');
-      document.body.classList.add('is-rewinding');
-      field?.classList.add('is-rewinding');
+  function initCosmicSunflower() {
+    const wrapper = first(['#cosmic-sunflower', '[data-cosmic-sunflower]', '.cosmic-sunflower']);
+    if (!wrapper) return;
+    const mount = first(['[data-sunflower-mount]', '.sunflower-mount'], wrapper) || wrapper;
+    let svg = $('.sunflower-svg:not(.sunflower-svg--miniature)', mount);
+    if (!svg) {
+      svg = createSunflowerSvg(false);
+      mount.insertBefore(svg, mount.firstChild);
+    }
 
-      const duration = motionDuration(2000, 80);
-      animateRewindItems(field, duration);
+    let centerButton = first(['#sunflower-center', '[data-sunflower-center]'], wrapper);
+    if (!centerButton) {
+      centerButton = document.createElement('button');
+      centerButton.id = 'sunflower-center';
+      centerButton.type = 'button';
+      centerButton.className = 'sunflower-center-button';
+      centerButton.dataset.sunflowerCenter = '';
+      centerButton.setAttribute('aria-label', 'Abrir el corazón del girasol');
+      wrapper.appendChild(centerButton);
+    }
+    centerButton.type = 'button';
 
-      later(() => {
-        document.body.classList.remove('is-rewinding');
-        field?.classList.remove('is-rewinding');
-        field?.classList.add('is-rewound');
-        button.removeAttribute('aria-busy');
-        button.setAttribute('aria-expanded', 'true');
+    const revelation = first(['#sunflower-revelation', '[data-sunflower-revelation]']);
+    const instruction = first(['#sunflower-instruction', '[data-sunflower-instruction]'], wrapper);
+    initSunflowerPetals(wrapper, mount);
 
-        if (result) {
-          showNode(result);
-          result.classList.add('is-active');
-          revealSequence(getRevealChildren(result), motionDuration(280, 0), motionDuration(100, 0));
-          later(() => scrollToNode(result), motionDuration(180, 0));
+    if (state.interactive.sunflowerCenter && revelation) {
+      show(centerButton);
+      enableSunflowerPetals(wrapper);
+      wrapper.dataset.bloomed = 'true';
+      wrapper.classList.add('is-blooming', 'is-bloomed');
+      openSunflowerCenter(wrapper, centerButton, revelation, instruction, true);
+    } else {
+      centerButton.disabled = true;
+      centerButton.hidden = true;
+      if (instruction) instruction.hidden = true;
+      observeOnce(wrapper, () => {
+        animateSunflowerBloom(wrapper, svg);
+        if (state.startedBefore && sceneRank(state.savedScene) > 4) {
+          enableSunflowerPetals(wrapper);
+          enableSunflowerCenter(wrapper);
         }
-      }, duration);
+      }, { threshold: .2, rootMargin: '0px 0px -8% 0px' });
+    }
+
+    centerButton.addEventListener('click', () => {
+      if (centerButton.disabled || state.interactive.sunflowerCenter || !revelation) return;
+      openSunflowerCenter(wrapper, centerButton, revelation, instruction, false);
     });
   }
 
-  function ensureConstellationStars(container) {
-    let stars = $$('[data-constellation-star], .constellation-star', container);
-    if (stars.length >= CONSTELLATION_STORIES.length) return stars.slice(0, CONSTELLATION_STORIES.length);
-
-    const fragment = document.createDocumentFragment();
-    for (let index = stars.length; index < CONSTELLATION_STORIES.length; index += 1) {
-      const button = document.createElement('button');
-      const glow = document.createElement('span');
-      button.type = 'button';
-      button.className = 'constellation-star';
-      button.dataset.constellationStar = '';
-      button.dataset.index = String(index);
-      button.setAttribute('aria-label', `Abrir estrella: ${CONSTELLATION_STORIES[index].title}`);
-      glow.className = 'constellation-star__glow';
-      glow.setAttribute('aria-hidden', 'true');
-      button.appendChild(glow);
-      fragment.appendChild(button);
+  function createConstellationLines(container, count) {
+    if (!container || count < 2) return;
+    let svg = $('.constellation-lines', container);
+    if (svg) {
+      svg.replaceChildren();
+      svg.setAttribute('viewBox', '0 0 100 100');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+    } else {
+      svg = svgElement('svg', {
+        viewBox: '0 0 100 100',
+        preserveAspectRatio: 'none',
+        class: 'constellation-lines',
+        'aria-hidden': 'true'
+      });
     }
-    container.appendChild(fragment);
-    stars = $$('[data-constellation-star], .constellation-star', container);
-    return stars.slice(0, CONSTELLATION_STORIES.length);
-  }
-
-  function makeConstellationLines(container, stars) {
-    if ($('.constellation-lines', container) || stars.length < 2) return;
-    const namespace = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(namespace, 'svg');
-    const connections = [[0, 1], [1, 2], [2, 3], [2, 5], [3, 4], [4, 5]];
-
-    svg.classList.add('constellation-lines');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-
-    connections.forEach(([from, to]) => {
-      const line = document.createElementNS(namespace, 'line');
-      line.classList.add('constellation-line');
-      line.dataset.from = String(from);
-      line.dataset.to = String(to);
-      line.setAttribute('x1', String(CONSTELLATION_POSITIONS[from][0]));
-      line.setAttribute('y1', String(CONSTELLATION_POSITIONS[from][1]));
-      line.setAttribute('x2', String(CONSTELLATION_POSITIONS[to][0]));
-      line.setAttribute('y2', String(CONSTELLATION_POSITIONS[to][1]));
+    const links = [[0, 1], [1, 2], [2, 3], [2, 5], [3, 4], [4, 5]];
+    links.filter((pair) => pair[0] < count && pair[1] < count).forEach((pair) => {
+      const from = CONSTELLATION_POSITIONS[pair[0]] || [20, 50];
+      const to = CONSTELLATION_POSITIONS[pair[1]] || [80, 50];
+      const line = svgElement('line', {
+        x1: from[0],
+        y1: from[1],
+        x2: to[0],
+        y2: to[1],
+        class: 'constellation-line',
+        'data-from': pair[0],
+        'data-to': pair[1]
+      });
       svg.appendChild(line);
     });
+    if (!svg.parentElement) container.insertBefore(svg, container.firstChild);
+  }
 
-    container.insertBefore(svg, container.firstChild);
+  function updateConstellationState(container, stars) {
+    const visited = new Set(state.interactive.constellationVisited);
+    stars.forEach((star, index) => {
+      const resolvedIndex = number(star.dataset.index, index);
+      star.classList.toggle('is-visited', visited.has(resolvedIndex));
+    });
+    $$('.constellation-line', container).forEach((line, index) => {
+      const hasEndpoints = line.dataset.from !== undefined && line.dataset.to !== undefined;
+      const from = number(line.dataset.from, -1);
+      const to = number(line.dataset.to, -1);
+      const shouldLight = hasEndpoints
+        ? visited.has(from) && visited.has(to)
+        : visited.size > index;
+      line.classList.toggle('is-lit', shouldLight);
+    });
+    container.classList.toggle('is-complete', visited.size >= stars.length && stars.length > 0);
   }
 
   function initConstellation() {
-    const container = first('#constellation', '[data-constellation]', '.constellation');
+    const container = first(['#constellation', '[data-constellation]', '.constellation']);
     if (!container) return;
-
-    const stars = ensureConstellationStars(container);
-    const panel = first('#constellation-panel', '[data-constellation-panel]', '.constellation-modal');
-    const title = panel ? first('#constellation-title', '[data-constellation-title]') || $('[data-title]', panel) : null;
-    const message = panel ? first('#constellation-message', '[data-constellation-message]') || $('[data-message]', panel) : null;
-    const close = panel ? $('#constellation-close, [data-constellation-close], .constellation-close', panel) : null;
-    const visited = new Set();
+    const stars = unique(['[data-constellation-star]', '.constellation-star'], container);
+    const panel = first(['#constellation-panel', '[data-constellation-panel]', '.constellation-modal']);
+    const title = panel ? first(['#constellation-title', '[data-constellation-title]'], panel) : null;
+    const message = panel ? first(['#constellation-message', '[data-constellation-message]'], panel) : null;
+    const close = panel ? first(['#constellation-close', '[data-constellation-close]', '.constellation-close'], panel) : null;
 
     stars.forEach((star, index) => {
       const position = CONSTELLATION_POSITIONS[index];
-      const story = CONSTELLATION_STORIES[index];
-      star.dataset.index = String(index);
-      star.style.left = `${position[0]}%`;
-      star.style.top = `${position[1]}%`;
-      star.style.setProperty('--star-x', `${position[0]}%`);
-      star.style.setProperty('--star-y', `${position[1]}%`);
-      star.setAttribute('aria-label', star.getAttribute('aria-label') || `Abrir estrella: ${story.title}`);
+      const resolvedIndex = number(star.dataset.index, index);
+      star.type = 'button';
+      star.dataset.index = String(resolvedIndex);
       star.setAttribute('aria-expanded', 'false');
-      if (panel?.id) star.setAttribute('aria-controls', panel.id);
-      if (index === 5) star.classList.add('is-special');
+      if (panel && panel.id) star.setAttribute('aria-controls', panel.id);
+      if (position) {
+        star.style.setProperty('--star-x', position[0] + '%');
+        star.style.setProperty('--star-y', position[1] + '%');
+      }
+    });
 
+    createConstellationLines(container, stars.length);
+    updateConstellationState(container, stars);
+
+    let activeStar = null;
+
+    const closePanel = () => {
+      if (!panel || panel.hidden) return;
+      panel.classList.remove('is-open', 'is-visible');
+      panel.setAttribute('aria-hidden', 'true');
+      panel.hidden = true;
+      document.body.classList.remove('constellation-dialog-open');
+      stars.forEach((star) => {
+        star.classList.remove('is-active');
+        star.setAttribute('aria-expanded', 'false');
+      });
+      activeStar = null;
+    };
+
+    stars.forEach((star, index) => {
       star.addEventListener('click', () => {
-        const selectedStory = {
-          title: star.dataset.title || story.title,
-          message: star.dataset.message || story.message
-        };
-        visited.add(index);
+        const resolvedIndex = number(star.dataset.index, index);
+        if (!state.interactive.constellationVisited.includes(resolvedIndex)) {
+          state.interactive.constellationVisited.push(resolvedIndex);
+          state.interactive.constellationVisited.sort((a, b) => a - b);
+        }
+        activeStar = star;
         stars.forEach((item) => {
           const active = item === star;
           item.classList.toggle('is-active', active);
           item.setAttribute('aria-expanded', String(active));
         });
-        star.classList.add('is-visited');
-        container.classList.toggle('is-complete', visited.size === stars.length);
-        $$('.constellation-line', container).forEach((line) => {
-          const from = Number(line.dataset.from);
-          const to = Number(line.dataset.to);
-          line.classList.toggle('is-lit', visited.has(from) && visited.has(to));
-        });
+        updateConstellationState(container, stars);
+        saveInteractiveState();
 
         if (!panel) return;
-        if (title) title.textContent = selectedStory.title;
-        if (message) message.textContent = selectedStory.message;
-        showNode(panel);
+        if (title) title.textContent = star.dataset.title || star.getAttribute('aria-label') || 'Una estrella';
+        if (message) message.textContent = star.dataset.message || '';
+        show(panel);
         panel.classList.add('is-open', 'is-visible');
         panel.setAttribute('aria-hidden', 'false');
-        panel.setAttribute('aria-live', 'polite');
-        if (typeof HTMLDialogElement !== 'undefined' && panel instanceof HTMLDialogElement && !panel.open) {
-          try {
-            panel.showModal();
-          } catch (_error) {
-            panel.setAttribute('open', '');
-          }
-        }
-        later(() => focusWithoutJump(title || panel), motionDuration(80, 0));
+        document.body.classList.add('constellation-dialog-open');
       });
     });
 
-    makeConstellationLines(container, stars);
-
-    const closePanel = () => {
-      if (!panel) return;
-      panel.classList.remove('is-open', 'is-visible');
-      panel.setAttribute('aria-hidden', 'true');
-      stars.forEach((star) => {
-        star.classList.remove('is-active');
-        star.setAttribute('aria-expanded', 'false');
-      });
-      if (typeof HTMLDialogElement !== 'undefined' && panel instanceof HTMLDialogElement && panel.open) panel.close();
-      else later(() => { panel.hidden = true; }, motionDuration(360, 0));
-    };
-
-    close?.addEventListener('click', closePanel);
-    panel?.addEventListener('cancel', (event) => {
-      event.preventDefault();
-      closePanel();
+    if (close) {
+      close.type = 'button';
+      close.addEventListener('click', closePanel);
+    }
+    panel?.addEventListener('click', (event) => {
+      if (event.target === panel) closePanel();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && activeStar) {
+        event.preventDefault();
+        closePanel();
+      }
     });
   }
 
   function flattenAndreaLayout() {
     const points = [];
-    const letterAdvance = 6;
+    const advance = 6;
     ANDREA_LAYOUT.forEach((glyph, letterIndex) => {
-      glyph.points.forEach(([x, y], pointIndex) => {
+      glyph.points.forEach((point, pointIndex) => {
         points.push({
           letter: glyph.letter,
           letterIndex,
           pointIndex,
-          x: (letterIndex * letterAdvance) + x,
-          y
+          x: letterIndex * advance + point[0],
+          y: point[1]
         });
       });
     });
     return points;
   }
 
-  function revealAndreaMessage() {
-    const marked = $$('[data-andrea-after], .andrea-after');
+  function revealAndreaCaption(restoring = false) {
+    const nodes = unique(['[data-andrea-after]', '.andrea-after']);
     const lines = [];
-    marked.forEach((node) => {
-      showNode(node);
-      node.classList.add('is-active');
-      if (node.matches('p, h2, h3, [data-sequence-item]')) lines.push(node);
-      else lines.push(...getRevealChildren(node));
+    nodes.forEach((node) => {
+      show(node);
+      if (node.matches('p, h2, h3, [data-reveal]')) lines.push(node);
+      else lines.push(...unique(['[data-reveal]', 'p'], node));
     });
-    revealSequence(lines, motionDuration(330, 0), motionDuration(1500, 0));
+    if (restoring) lines.forEach(revealImmediately);
+    else revealSequence(lines, duration(460, 0), duration(1150, 0));
+  }
+
+  function finishAndrea(stage, stars, restoring = false) {
+    stars.forEach((star) => {
+      star.style.transform = 'translate3d(0,0,0) scale(1)';
+      star.style.opacity = star.dataset.targetOpacity || '1';
+      star.classList.add('is-formed');
+    });
+    stage.classList.remove('is-forming');
+    stage.classList.add('is-formed');
+    document.body.classList.remove('andrea-is-forming');
+    state.interactive.andrea = true;
+    revealAndreaCaption(restoring);
+    saveInteractiveState();
   }
 
   function formAndreaName(stage, stars) {
     if (!stage || stage.dataset.formed === 'true') return;
     stage.dataset.formed = 'true';
     stage.classList.add('is-forming');
+    document.body.classList.add('andrea-is-forming');
 
     if (state.reducedMotion || typeof Element.prototype.animate !== 'function') {
-      stars.forEach((star) => {
-        star.style.left = star.dataset.targetX;
-        star.style.top = star.dataset.targetY;
-        star.style.opacity = star.dataset.targetOpacity || '1';
-        star.classList.add('is-formed');
-      });
-      stage.classList.remove('is-forming');
-      stage.classList.add('is-formed');
-      revealAndreaMessage();
+      finishAndrea(stage, stars, false);
       return;
     }
 
-    let longestAnimation = 0;
+    const rectangle = stage.getBoundingClientRect();
+    const width = Math.max(rectangle.width, 280);
+    const height = Math.max(rectangle.height, 170);
+    let longest = 0;
+
     stars.forEach((star, index) => {
-      const duration = 1800 + (seeded(index, 24) * 1050);
-      const delay = (index % 12) * 28 + (Math.floor(index / 12) * 42);
-      const middleX = `${numeric(star.dataset.fromX) + ((numeric(star.dataset.targetX) - numeric(star.dataset.fromX)) * 0.58) + ((seeded(index, 25) - 0.5) * 9)}%`;
-      const middleY = `${numeric(star.dataset.fromY) + ((numeric(star.dataset.targetY) - numeric(star.dataset.fromY)) * 0.58) + ((seeded(index, 26) - 0.5) * 12)}%`;
-      longestAnimation = Math.max(longestAnimation, duration + delay);
+      const targetX = number(star.dataset.targetX, 50);
+      const targetY = number(star.dataset.targetY, 50);
+      const fromX = number(star.dataset.fromX, 50);
+      const fromY = number(star.dataset.fromY, 50);
+      const offsetX = (fromX - targetX) * width / 100;
+      const offsetY = (fromY - targetY) * height / 100;
+      const traceX = offsetX * .55 + (seeded(index, 51) - .5) * 58;
+      const traceY = offsetY * .5 + (seeded(index, 52) - .5) * 42;
+      const traceTwoX = offsetX * .22 + (seeded(index, 53) - .5) * 32;
+      const traceTwoY = offsetY * .2 + (seeded(index, 54) - .5) * 28;
+      const animationDuration = 2400 + seeded(index, 55) * 1050;
+      const delay = (index % 13) * 34 + Math.floor(index / 13) * 65;
+      longest = Math.max(longest, animationDuration + delay);
 
       const animation = star.animate([
-        { left: star.dataset.fromX, top: star.dataset.fromY, opacity: 0.16, filter: 'blur(1.5px)', transform: 'scale(.45)' },
-        { left: middleX, top: middleY, opacity: 0.72, filter: 'blur(.35px)', transform: 'scale(.78)', offset: 0.64 },
-        { left: star.dataset.targetX, top: star.dataset.targetY, opacity: star.dataset.targetOpacity, filter: 'blur(0)', transform: 'scale(1)' }
+        { opacity: .06, transform: 'translate3d(' + offsetX.toFixed(2) + 'px,' + offsetY.toFixed(2) + 'px,0) scale(.35)' },
+        { opacity: .42, transform: 'translate3d(' + traceX.toFixed(2) + 'px,' + traceY.toFixed(2) + 'px,0) scale(.65)', offset: .42 },
+        { opacity: .72, transform: 'translate3d(' + traceTwoX.toFixed(2) + 'px,' + traceTwoY.toFixed(2) + 'px,0) scale(.82)', offset: .72 },
+        { opacity: number(star.dataset.targetOpacity, .9), transform: 'translate3d(0,0,0) scale(1)' }
       ], {
-        duration,
+        duration: animationDuration,
         delay,
-        easing: 'cubic-bezier(.22,.75,.2,1)',
+        easing: 'cubic-bezier(.22,.72,.2,1)',
         fill: 'forwards'
       });
-
       animation.finished.then(() => {
-        star.style.left = star.dataset.targetX;
-        star.style.top = star.dataset.targetY;
-        star.style.opacity = star.dataset.targetOpacity;
-        star.classList.add('is-formed');
+        star.style.opacity = star.dataset.targetOpacity || '1';
+        star.style.transform = 'translate3d(0,0,0) scale(1)';
         animation.cancel();
       }).catch(() => {});
     });
 
-    later(() => {
-      stage.classList.remove('is-forming');
-      stage.classList.add('is-formed');
-      revealAndreaMessage();
-    }, longestAnimation);
+    setTimer(() => finishAndrea(stage, stars, false), longest + 80);
   }
 
   function initAndreaStars() {
-    const stage = first('#andrea-stars', '[data-andrea-stars]', '.andrea-stage');
+    const stage = first(['#andrea-stars', '[data-andrea-stars]', '.andrea-stage']);
     if (!stage) return;
+    const mount = first(['[data-andrea-mount]', '.andrea-mount'], stage) || stage;
+    let stars = $$('[data-andrea-generated]', mount);
 
-    $$('[data-andrea-generated]', stage).forEach((node) => node.remove());
-    const points = flattenAndreaLayout();
-    const fragment = document.createDocumentFragment();
-    const totalWidth = ((ANDREA_LAYOUT.length - 1) * 6) + 4;
+    if (!stars.length) {
+      const points = flattenAndreaLayout();
+      const fragment = document.createDocumentFragment();
+      const totalWidth = (ANDREA_LAYOUT.length - 1) * 6 + 4;
 
-    points.forEach((point, index) => {
-      const star = document.createElement('span');
-      const targetX = 5 + ((point.x / totalWidth) * 90);
-      const targetY = 18 + ((point.y / 6) * 64);
-      const fromX = 4 + (seeded(index, 20) * 92);
-      const fromY = 5 + (seeded(index, 21) * 90);
-      const size = 1.4 + (seeded(index, 22) * 2.2);
-      const opacity = 0.7 + (seeded(index, 23) * 0.3);
+      points.forEach((point, index) => {
+        const star = document.createElement('span');
+        const targetX = 5 + point.x / totalWidth * 90;
+        const targetY = 17 + point.y / 6 * 66;
+        const size = 1.8 + seeded(index, 47) * 2.6;
 
-      star.className = 'andrea-star';
-      star.dataset.andreaGenerated = 'true';
-      star.dataset.letter = point.letter;
-      star.dataset.letterIndex = String(point.letterIndex);
-      star.dataset.fromX = `${fromX.toFixed(3)}%`;
-      star.dataset.fromY = `${fromY.toFixed(3)}%`;
-      star.dataset.targetX = `${targetX.toFixed(3)}%`;
-      star.dataset.targetY = `${targetY.toFixed(3)}%`;
-      star.dataset.targetOpacity = opacity.toFixed(2);
-      star.setAttribute('aria-hidden', 'true');
-      star.style.left = star.dataset.fromX;
-      star.style.top = star.dataset.fromY;
-      star.style.opacity = '0.16';
-      star.style.setProperty('--andrea-star-size', `${size.toFixed(2)}px`);
-      star.style.setProperty('--size', `${size.toFixed(2)}px`);
-      star.style.setProperty('--target-x', star.dataset.targetX);
-      star.style.setProperty('--target-y', star.dataset.targetY);
-      fragment.appendChild(star);
-    });
+        star.className = 'andrea-star';
+        star.dataset.andreaGenerated = 'true';
+        star.dataset.letter = point.letter;
+        star.dataset.letterIndex = String(point.letterIndex);
+        star.dataset.fromX = (3 + seeded(index, 43) * 94).toFixed(3);
+        star.dataset.fromY = (3 + seeded(index, 44) * 94).toFixed(3);
+        star.dataset.targetX = targetX.toFixed(3);
+        star.dataset.targetY = targetY.toFixed(3);
+        star.dataset.targetOpacity = (.78 + seeded(index, 45) * .22).toFixed(2);
+        star.setAttribute('aria-hidden', 'true');
+        star.style.left = star.dataset.targetX + '%';
+        star.style.top = star.dataset.targetY + '%';
+        star.style.opacity = '0';
+        star.style.setProperty('--size', size.toFixed(2) + 'px');
+        star.style.setProperty('--andrea-star-size', size.toFixed(2) + 'px');
+        star.style.setProperty('--twinkle-duration', (4.2 + seeded(index, 48) * 3.4).toFixed(2) + 's');
+        star.style.setProperty('--twinkle-delay', (-seeded(index, 49) * 4.8).toFixed(2) + 's');
+        fragment.appendChild(star);
+      });
+      mount.appendChild(fragment);
+      stars = $$('[data-andrea-generated]', mount);
+    }
 
-    stage.appendChild(fragment);
+    mount.classList.add('is-enhanced');
     stage.setAttribute('role', 'img');
-    stage.setAttribute('aria-label', 'Las estrellas forman el nombre ANDREA');
-    const stars = $$('[data-andrea-generated]', stage);
-    observeOnce(stage, () => formAndreaName(stage, stars), { threshold: 0.26, rootMargin: '0px 0px -8% 0px' });
+    stage.setAttribute('aria-label', 'Las estrellas forman lentamente el nombre ANDREA');
+
+    const shouldRestore = state.interactive.andrea || sceneRank(state.savedScene) > 10;
+    if (shouldRestore) {
+      stage.dataset.formed = 'true';
+      finishAndrea(stage, stars, true);
+    } else {
+      observeOnce(stage, () => formAndreaName(stage, stars), {
+        threshold: .24,
+        rootMargin: '0px 0px -7% 0px'
+      });
+    }
   }
 
-  function ensureFutureRoute(stage) {
-    if ($('.future-trajectory', stage)) return;
-    const existingSvg = $('svg', stage);
+  function ensureFutureRoutes(stage) {
+    if (!stage || $('.future-routes', stage)) return;
+    const existingSvg = first(['svg.future-path__trail', 'svg'], stage);
     if (existingSvg) {
-      existingSvg.classList.add('future-trajectory');
-      const existingPath = $('path', existingSvg);
-      if (existingPath) {
-        existingPath.classList.add('future-route');
-        existingPath.setAttribute('pathLength', '1');
-      }
+      existingSvg.classList.remove('future-path__trail');
+      existingSvg.classList.add('future-routes');
+      const existingPaths = $$('path', existingSvg).slice(0, 2);
+      existingPaths.forEach((path, index) => {
+        path.classList.add('future-route', index === 0 ? 'future-route--first' : 'future-route--second');
+        path.setAttribute('pathLength', '1');
+      });
       return;
     }
-    const namespace = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(namespace, 'svg');
-    const path = document.createElementNS(namespace, 'path');
-    svg.classList.add('future-trajectory');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-    path.classList.add('future-route');
-    path.setAttribute('pathLength', '1');
-    path.setAttribute('d', 'M 8 72 C 29 63, 38 46, 50 45 C 62 44, 68 34, 80 29');
-    svg.appendChild(path);
+    const svg = svgElement('svg', {
+      viewBox: '0 0 100 100',
+      preserveAspectRatio: 'none',
+      class: 'future-routes',
+      'aria-hidden': 'true'
+    });
+    svg.appendChild(svgElement('path', {
+      d: 'M 16 39 C 38 35, 58 27, 84 19',
+      class: 'future-route future-route--first',
+      pathLength: 1
+    }));
+    svg.appendChild(svgElement('path', {
+      d: 'M 16 66 C 38 62, 58 54, 84 46',
+      class: 'future-route future-route--second',
+      pathLength: 1
+    }));
     stage.insertBefore(svg, stage.firstChild);
   }
 
-  function animateFuture(stage, stars) {
+  function revealFutureCopy(restoring = false) {
+    const copy = unique(['[data-future-after]', '.future-after']);
+    if (restoring) copy.forEach(revealImmediately);
+    else revealSequence(copy, duration(380, 0), duration(620, 0));
+  }
+
+  function finishFuture(stage, stars, distanceX, distanceY, restoring = false) {
+    stars.slice(0, 2).forEach((star) => {
+      star.style.transform = 'translate3d(' + distanceX.toFixed(2) + 'px,' + distanceY.toFixed(2) + 'px,0)';
+    });
+    stage.classList.remove('is-travelling');
+    stage.classList.add('is-aligned');
+    state.interactive.future = true;
+    revealFutureCopy(restoring);
+    saveInteractiveState();
+  }
+
+  function animateFutureStars(stage, stars) {
     if (stage.dataset.animated === 'true') return;
     stage.dataset.animated = 'true';
     stage.classList.add('is-travelling');
+    const rectangle = stage.getBoundingClientRect();
+    const distanceX = Math.max(120, rectangle.width * .52);
+    const distanceY = -Math.max(24, rectangle.height * .17);
+    const travelTime = duration(4400, 0);
 
-    const paths = [
-      [
-        { left: '8%', top: '72%', opacity: 0.55 },
-        { left: '47%', top: '45%', opacity: 1, offset: 0.58 },
-        { left: '78%', top: '28%', opacity: 1 }
-      ],
-      [
-        { left: '92%', top: '18%', opacity: 0.55 },
-        { left: '53%', top: '46%', opacity: 1, offset: 0.58 },
-        { left: '81%', top: '31%', opacity: 1 }
-      ]
-    ];
-
-    const duration = motionDuration(4700, 0);
-    stars.slice(0, 2).forEach((star, index) => {
-      const keyframes = paths[index];
-      star.style.left = keyframes[0].left;
-      star.style.top = keyframes[0].top;
-      star.classList.add(`future-star--${index + 1}`);
-
-      if (!duration || typeof star.animate !== 'function') {
-        star.style.left = keyframes[2].left;
-        star.style.top = keyframes[2].top;
-        return;
-      }
-
-      const animation = star.animate(keyframes, {
-        duration,
-        delay: index * 90,
-        easing: 'cubic-bezier(.42,0,.2,1)',
-        fill: 'forwards'
-      });
-      animation.finished.then(() => {
-        star.style.left = keyframes[2].left;
-        star.style.top = keyframes[2].top;
-        animation.cancel();
-      }).catch(() => {});
-    });
-
-    const route = $('.future-route', stage);
-    if (route && duration && typeof route.animate === 'function') {
-      route.animate([
-        { strokeDasharray: '1', strokeDashoffset: '1', opacity: 0 },
-        { opacity: 0.48, offset: 0.18 },
-        { strokeDasharray: '1', strokeDashoffset: '0', opacity: 0.16 }
-      ], { duration, easing: 'ease-in-out', fill: 'forwards' });
+    if (!travelTime || typeof Element.prototype.animate !== 'function') {
+      finishFuture(stage, stars, distanceX, distanceY, false);
+      return;
     }
 
-    later(() => {
-      stage.classList.remove('is-travelling');
-      stage.classList.add('is-joined');
-      const after = $$('[data-future-after], .future-after');
-      revealSequence(after, motionDuration(250, 0), motionDuration(280, 0));
-    }, duration);
+    stars.slice(0, 2).forEach((star, index) => {
+      const offset = index === 0 ? -4 : 4;
+      const animation = star.animate([
+        { opacity: .65, transform: 'translate3d(0,0,0)' },
+        { opacity: 1, transform: 'translate3d(' + (distanceX * .48).toFixed(2) + 'px,' + (distanceY * .48 + offset).toFixed(2) + 'px,0)', offset: .5 },
+        { opacity: 1, transform: 'translate3d(' + distanceX.toFixed(2) + 'px,' + distanceY.toFixed(2) + 'px,0)' }
+      ], {
+        duration: travelTime,
+        delay: index * 90,
+        easing: 'cubic-bezier(.38,0,.2,1)',
+        fill: 'forwards'
+      });
+      animation.finished.catch(() => {});
+    });
+
+    $$('.future-route', stage).forEach((route, index) => {
+      if (typeof route.animate !== 'function') return;
+      route.animate([
+        { strokeDasharray: '1', strokeDashoffset: '1', opacity: 0 },
+        { opacity: .38, offset: .24 },
+        { strokeDasharray: '1', strokeDashoffset: '0', opacity: .18 }
+      ], {
+        duration: travelTime,
+        delay: index * 90,
+        easing: 'ease-in-out',
+        fill: 'forwards'
+      });
+    });
+
+    setTimer(() => finishFuture(stage, stars, distanceX, distanceY, false), travelTime + 140);
   }
 
-  function initFutureAnimation() {
-    const stage = first('#future-path', '[data-future-path]', '.future-path');
+  function initFutureStars() {
+    const stage = first(['#future-path', '[data-future-path]', '.future-path']);
     if (!stage) return;
-
-    let stars = $$('[data-future-star], .future-star', stage);
+    let stars = unique(['[data-future-star]', '.future-star'], stage);
     while (stars.length < 2) {
       const star = document.createElement('span');
-      star.className = 'future-star';
-      star.dataset.futureStar = '';
+      star.className = 'future-star future-star--' + (stars.length ? 'second' : 'first');
+      star.dataset.futureStar = stars.length ? 'second' : 'first';
       star.setAttribute('aria-hidden', 'true');
       stage.appendChild(star);
       stars.push(star);
     }
-    ensureFutureRoute(stage);
-    observeOnce(stage, () => animateFuture(stage, stars), { threshold: 0.28 });
+
+    stars[0].style.left = '16%';
+    stars[0].style.top = '39%';
+    stars[1].style.left = '16%';
+    stars[1].style.top = '66%';
+    ensureFutureRoutes(stage);
+    stage.setAttribute('aria-label', 'Dos estrellas separadas avanzan en la misma dirección');
+
+    const rectangle = stage.getBoundingClientRect();
+    const distanceX = Math.max(120, rectangle.width * .52);
+    const distanceY = -Math.max(24, rectangle.height * .17);
+    const shouldRestore = state.interactive.future || sceneRank(state.savedScene) > 8;
+    if (shouldRestore) {
+      stage.dataset.animated = 'true';
+      finishFuture(stage, stars, distanceX, distanceY, true);
+    } else {
+      observeOnce(stage, () => animateFutureStars(stage, stars), { threshold: .27 });
+    }
   }
 
-  function initUniverseIllumination() {
-    const universe = first('#universe-scene', '[data-universe]', '.galaxy');
-    if (!universe) return;
+  function initSecretStar() {
+    const secretStar = first(['#secret-star', '[data-secret-star]', '.secret-star']);
+    const message = first(['#secret-message', '[data-secret-message]', '.secret-message']);
+    if (!secretStar || !message) return;
+    const close = first(['#secret-close', '[data-secret-close]', '.secret-message__close'], message);
 
-    const illuminate = () => {
-      universe.classList.add('is-illuminated');
-      const galaxy = $('.galaxy', universe) || (universe.matches('.galaxy') ? universe : null);
-      galaxy?.classList.add('is-illuminated');
-      later(() => {
-        universe.classList.add('is-radiant');
-        galaxy?.classList.add('is-radiant');
-      }, motionDuration(1800, 0));
+    secretStar.type = 'button';
+    secretStar.setAttribute('aria-expanded', 'false');
+    if (state.interactive.secret) secretStar.classList.add('was-found');
+
+    const closeMessage = () => {
+      message.classList.remove('is-open', 'is-visible');
+      message.hidden = true;
+      secretStar.setAttribute('aria-expanded', 'false');
     };
 
-    const activator = first('#activate-universe', '[data-universe-activate]');
-    if (activator) {
-      activator.addEventListener('click', () => {
-        illuminate();
-        activator.disabled = true;
-        activator.setAttribute('aria-pressed', 'true');
-      });
-    } else {
-      observeOnce(universe, illuminate, { threshold: 0.32 });
+    secretStar.addEventListener('click', () => {
+      state.interactive.secret = true;
+      secretStar.classList.add('is-found', 'was-found');
+      secretStar.setAttribute('aria-expanded', 'true');
+      show(message);
+      message.classList.add('is-open', 'is-visible');
+      revealChildren(message, 190, 80);
+      saveInteractiveState();
+    });
+
+    if (close) {
+      close.type = 'button';
+      close.addEventListener('click', closeMessage);
     }
+  }
+
+  function initFinalSunflower() {
+    const mount = first(['[data-final-sunflower-mount]', '.final-sunflower-mount']);
+    if (!mount || $('.sunflower-svg--miniature', mount)) return;
+    mount.appendChild(createSunflowerSvg(true));
+  }
+
+  function showFinale(finale, trigger, restoring = false) {
+    if (!finale) return;
+    state.interactive.finale = true;
+    stopAmbientTimers();
+    $$('[data-generated-shooting-star]').forEach((star) => star.remove());
+    if (trigger) {
+      trigger.type = 'button';
+      trigger.disabled = true;
+      trigger.setAttribute('aria-expanded', 'true');
+      trigger.classList.add('is-complete');
+    }
+    show(finale);
+    finale.classList.add('is-active');
+    document.body.classList.add('finale-active', 'finale-open');
+    initFinalSunflower();
+
+    const lines = unique(['[data-final-line]', '[data-reveal]', 'p'], finale);
+    const finalStar = first(['[data-final-star]', '.final-star'], finale);
+    const finalSunflower = first(['[data-final-sunflower-mount]', '.final-sunflower-mount'], finale);
+    const shootingStar = first(['[data-shooting-star]', '.final-shooting-star'], finale);
+
+    if (restoring) {
+      revealImmediately(finalStar);
+      lines.forEach(revealImmediately);
+      if (finalSunflower) finalSunflower.classList.add('is-visible');
+      if (shootingStar) shootingStar.classList.add('has-passed');
+      finale.classList.add('is-complete');
+    } else {
+      revealImmediately(finalStar);
+      show(finalSunflower);
+      show(shootingStar);
+      const timeline = [0, 1200, 2000, 2800, 4500, 5500, 7000, 8200, 10000, 14500, 17500];
+      // Reserve every line now, then reveal on an authored emotional timeline.
+      lines.forEach(show);
+      lines.forEach((line, index) => {
+        revealNode(line, duration(timeline[index] === undefined ? 17500 + (index - 10) * 1200 : timeline[index], 0));
+      });
+      const total = duration(timeline[Math.min(lines.length - 1, timeline.length - 1)] || 0, 0);
+      setTimer(() => {
+        if (finalSunflower) finalSunflower.classList.add('is-visible');
+      }, duration(total + 2200, 0));
+      setTimer(() => {
+        if (shootingStar) shootingStar.classList.add('is-active');
+        finale.classList.add('is-complete');
+      }, duration(total + 3400, 0));
+    }
+    saveInteractiveState();
+  }
+
+  function initFinale() {
+    const trigger = document.querySelector('#last-star-trigger');
+    const finale = document.querySelector('#finale');
+    if (!finale) return;
+    initFinalSunflower();
+
+    if (state.interactive.finale) {
+      showFinale(finale, trigger, true);
+      return;
+    }
+
+    if (!trigger) return;
+    trigger.type = 'button';
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.addEventListener('click', () => {
+      if (state.interactive.finale) return;
+      showFinale(finale, trigger, false);
+    });
   }
 
   function createLightRipple(target, event) {
     if (!target || state.reducedMotion) return;
+    const rectangle = target.getBoundingClientRect();
     const ripple = document.createElement('span');
-    const rect = target.getBoundingClientRect();
-    const x = Number.isFinite(event.clientX) && event.clientX !== 0 ? event.clientX : rect.left + (rect.width / 2);
-    const y = Number.isFinite(event.clientY) && event.clientY !== 0 ? event.clientY : rect.top + (rect.height / 2);
     ripple.className = 'light-ripple';
     ripple.setAttribute('aria-hidden', 'true');
-    ripple.style.left = `${x}px`;
-    ripple.style.top = `${y}px`;
-    ripple.style.setProperty('--ripple-x', `${x}px`);
-    ripple.style.setProperty('--ripple-y', `${y}px`);
-    document.body.appendChild(ripple);
+    ripple.style.left = (event.clientX - rectangle.left) + 'px';
+    ripple.style.top = (event.clientY - rectangle.top) + 'px';
+    target.appendChild(ripple);
 
     if (typeof ripple.animate === 'function') {
       const animation = ripple.animate([
-        { opacity: 0.58, transform: 'translate(-50%, -50%) scale(.1)' },
-        { opacity: 0, transform: 'translate(-50%, -50%) scale(4.4)' }
-      ], { duration: 900, easing: 'cubic-bezier(.16,.72,.25,1)' });
+        { opacity: .5, transform: 'translate(-50%,-50%) scale(.1)' },
+        { opacity: 0, transform: 'translate(-50%,-50%) scale(4)' }
+      ], { duration: 850, easing: 'cubic-bezier(.16,.72,.25,1)' });
       animation.finished.catch(() => {}).finally(() => ripple.remove());
     } else {
-      ripple.classList.add('is-expanding');
-      later(() => ripple.remove(), 950);
+      setTimer(() => ripple.remove(), 900);
     }
   }
 
   function initLightRipples() {
     document.addEventListener('click', (event) => {
       if (!(event.target instanceof Element)) return;
-      const target = event.target.closest('[data-ripple], .constellation-star, [data-secret-star], .secret-star, .cosmic-btn');
-      if (!target) return;
-      createLightRipple(target, event);
+      const target = event.target.closest('.cosmic-btn, [data-ripple], [data-constellation-star], [data-sunflower-petal], [data-secret-star]');
+      if (target) createLightRipple(target, event);
     });
   }
 
-  function createSecretMessageFallback(secretStar) {
-    const panel = document.createElement('aside');
-    const close = document.createElement('button');
-    const lines = [
-      'Encontraste una estrella escondida.',
-      'Supongo que siempre he sido mejor escondiendo sentimientos que estrellas.',
-      'Estoy intentando mejorar en ambas cosas.',
-      'Pero por si acaso esta sí quedó demasiado fácil.'
-    ];
-
-    panel.id = 'secret-message';
-    panel.className = 'secret-message';
-    panel.dataset.secretMessage = '';
-    panel.hidden = true;
-    panel.setAttribute('aria-live', 'polite');
-    lines.forEach((text) => {
-      const paragraph = document.createElement('p');
-      paragraph.dataset.sequenceItem = '';
-      paragraph.textContent = text;
-      panel.appendChild(paragraph);
-    });
-    close.type = 'button';
-    close.className = 'secret-message__close';
-    close.dataset.secretClose = '';
-    close.setAttribute('aria-label', 'Cerrar mensaje secreto');
-    close.textContent = '×';
-    panel.appendChild(close);
-    (secretStar.closest('.scene, [data-scene]') || document.body).appendChild(panel);
-    return panel;
+  function initSunflowerEcho() {
+    const echo = first(['[data-sunflower-echo]', '.sunflower-echo']);
+    if (!echo || $('.sunflower-svg--miniature', echo)) return;
+    echo.appendChild(createSunflowerSvg(true));
+    observeOnce(echo, () => echo.classList.add('is-visible'), { threshold: .15 });
   }
 
-  function initSecretStar() {
-    let secretStar = first('#secret-star', '[data-secret-star]', '.secret-star');
-    if (!secretStar) {
-      const host = first('#universe-scene', '[data-universe]', '#experience', 'main');
-      if (!host) return;
-      secretStar = document.createElement('button');
-      secretStar.id = 'secret-star';
-      secretStar.type = 'button';
-      secretStar.className = 'secret-star';
-      secretStar.dataset.secretStar = '';
-      secretStar.setAttribute('aria-label', 'Una estrella casi escondida');
-      secretStar.innerHTML = '<span aria-hidden="true">✦</span>';
-      host.appendChild(secretStar);
-    }
-
-    let message = first('#secret-message', '[data-secret-message]');
-    if (!message) message = createSecretMessageFallback(secretStar);
-    let close = first('#secret-close', '[data-secret-close]') || $('[data-secret-close]', message);
-    if (!close) {
-      close = document.createElement('button');
-      close.type = 'button';
-      close.className = 'secret-message__close';
-      close.dataset.secretClose = '';
-      close.setAttribute('aria-label', 'Cerrar mensaje secreto');
-      close.textContent = '×';
-      message.appendChild(close);
-    }
-
-    if (readSession(STORAGE_KEYS.secret)) secretStar.classList.add('was-found');
-    secretStar.addEventListener('click', () => {
-      secretStar.classList.add('is-found', 'was-found');
-      secretStar.setAttribute('aria-expanded', 'true');
-      writeSession(STORAGE_KEYS.secret);
-      showNode(message);
-      message.classList.add('is-open', 'is-visible');
-      revealSequence(getRevealChildren(message), motionDuration(310, 0), motionDuration(80, 0));
-      later(() => focusWithoutJump(message), motionDuration(120, 0));
-    });
-
-    close?.addEventListener('click', () => {
-      message.classList.remove('is-open', 'is-visible');
-      secretStar.setAttribute('aria-expanded', 'false');
-      later(() => { message.hidden = true; }, motionDuration(350, 0));
-      secretStar.focus();
+  function initGalaxyDepth() {
+    const galaxy = first(['#galaxy', '[data-galaxy]', '.galaxy']);
+    if (!galaxy) return;
+    observeOnce(galaxy, () => galaxy.classList.add('is-illuminated'), {
+      threshold: .16,
+      rootMargin: '0px 0px -5% 0px'
     });
   }
 
-  function showCommonEnding() {
-    if (state.commonEndingShown) return;
-    const common = first('#common-ending', '[data-common-ending]');
-    if (!common) return;
+  function updateScrollProgress() {
+    state.scrollFrame = 0;
+    const root = document.documentElement;
+    const maximum = Math.max(1, root.scrollHeight - window.innerHeight);
+    const amount = clamp(window.scrollY / maximum, 0, 1);
+    const progress = first(['#scroll-progress', '[data-scroll-progress]', '.progress-bar']);
 
-    state.commonEndingShown = true;
-    const total = revealPanel(common, {
-      step: motionDuration(360, 0),
-      initialDelay: motionDuration(180, 0),
-      scroll: true
-    });
-    common.classList.add('is-ready');
+    root.style.setProperty('--scroll-progress', amount.toFixed(4));
+    root.style.setProperty('--scroll-parallax', (amount * 28).toFixed(2) + 'px');
+    document.body.classList.toggle('near-the-end', amount > .93);
 
-    const lastStarButton = first('#last-star-button', '[data-last-star]');
-    if (lastStarButton) {
-      lastStarButton.disabled = true;
-      later(() => { lastStarButton.disabled = false; }, motionDuration(total + 420, 0));
+    if (progress) {
+      progress.style.transform = 'scaleX(' + amount.toFixed(4) + ')';
+      progress.setAttribute('aria-valuemin', '0');
+      progress.setAttribute('aria-valuemax', '100');
+      progress.setAttribute('aria-valuenow', String(Math.round(amount * 100)));
     }
   }
 
-  function handleTryAgainEnding() {
-    const panel = first('#ending-try', '[data-ending="try"]');
-    const continueButton = first('#continue-ending', '[data-continue-ending]');
-    const total = revealPanel(panel, {
-      step: motionDuration(320, 0),
-      initialDelay: motionDuration(100, 0),
-      scroll: true
-    });
-
-    if (continueButton) {
-      continueButton.disabled = true;
-      later(() => { continueButton.disabled = false; }, motionDuration(total + 450, 0));
-    } else {
-      later(showCommonEnding, motionDuration(Math.max(total + 1800, 5200), 0));
-    }
-  }
-
-  function handleNeedTimeEnding() {
-    const panel = first('#ending-time', '[data-ending="time"]');
-    const total = revealPanel(panel, {
-      step: motionDuration(390, 0),
-      initialDelay: motionDuration(120, 0),
-      scroll: true
-    });
-    later(showCommonEnding, motionDuration(Math.max(total + 1900, 6200), 0));
-  }
-
-  function initEndingChoices() {
-    const showQuestion = first('#show-question', '[data-show-question]');
-    const question = first('#question-content', '[data-question-content]');
-    const tryButton = first('#choice-try', '[data-choice="try"]');
-    const timeButton = first('#choice-time', '[data-choice="time"]');
-    const continueButton = first('#continue-ending', '[data-continue-ending]');
-    const lastStarButton = first('#last-star-button', '[data-last-star]');
-    const postscript = first('#postscript', '[data-postscript]');
-
-    showQuestion?.addEventListener('click', () => {
-      if (!question) return;
-      showQuestion.disabled = true;
-      showQuestion.setAttribute('aria-expanded', 'true');
-      revealPanel(question, {
-        step: motionDuration(270, 0),
-        initialDelay: motionDuration(120, 0),
-        scroll: true
-      });
-    });
-
-    const choose = (choice) => {
-      if (state.endingChoice) return;
-      state.endingChoice = choice;
-      [tryButton, timeButton].forEach((button) => {
-        if (!button) return;
-        button.disabled = true;
-        button.setAttribute('aria-pressed', String(button.dataset.choice === choice || button === (choice === 'try' ? tryButton : timeButton)));
-      });
-      question?.classList.add('has-answer', `answer-${choice}`);
-      document.body.dataset.ending = choice;
-      if (choice === 'try') handleTryAgainEnding();
-      else handleNeedTimeEnding();
-    };
-
-    tryButton?.addEventListener('click', () => choose('try'));
-    timeButton?.addEventListener('click', () => choose('time'));
-    continueButton?.addEventListener('click', () => {
-      if (state.endingChoice !== 'try' || continueButton.disabled) return;
-      continueButton.disabled = true;
-      showCommonEnding();
-    });
-
-    lastStarButton?.addEventListener('click', () => {
-      if (!postscript || lastStarButton.dataset.opened === 'true') return;
-      lastStarButton.dataset.opened = 'true';
-      lastStarButton.disabled = true;
-      lastStarButton.setAttribute('aria-expanded', 'true');
-      showNode(postscript);
-      postscript.classList.add('is-active');
-      revealSequence(getRevealChildren(postscript), motionDuration(430, 0), motionDuration(180, 0));
-      later(() => {
-        scrollToNode(postscript);
-        focusWithoutJump(postscript);
-      }, motionDuration(160, 0));
-    });
+  function requestProgressUpdate() {
+    if (!state.scrollFrame) state.scrollFrame = requestAnimationFrame(updateScrollProgress);
   }
 
   function initScrollProgress() {
-    const progress = first('#scroll-progress', '[data-scroll-progress]', '.progress-bar');
-    let frame = 0;
-
-    const update = () => {
-      frame = 0;
-      const root = document.documentElement;
-      const maximum = Math.max(1, root.scrollHeight - window.innerHeight);
-      const amount = clamp(window.scrollY / maximum, 0, 1);
-      root.style.setProperty('--scroll-progress', amount.toFixed(4));
-      document.body.classList.toggle('near-the-end', amount > 0.92);
-      if (progress) {
-        progress.style.width = '100%';
-        progress.style.setProperty('--progress', '100%');
-        progress.style.transform = `scaleX(${amount})`;
-        progress.setAttribute('aria-valuemin', '0');
-        progress.setAttribute('aria-valuemax', '100');
-        progress.setAttribute('aria-valuenow', String(Math.round(amount * 100)));
-      }
-    };
-
-    const requestUpdate = () => {
-      if (!frame) frame = requestAnimationFrame(update);
-    };
-    window.addEventListener('scroll', requestUpdate, { passive: true });
-    window.addEventListener('resize', requestUpdate, { passive: true });
-    update();
-  }
-
-  function initParallaxLight() {
-    const root = document.documentElement;
-    const layers = $$('[data-parallax]');
-    let pointerFrame = 0;
-    let scrollFrame = 0;
-
-    let light = first('#ambient-light', '[data-ambient-light]', '.ambient-light');
-    if (!light) {
-      light = document.createElement('div');
-      light.className = 'ambient-light';
-      light.dataset.ambientLight = '';
-      light.setAttribute('aria-hidden', 'true');
-      document.body.appendChild(light);
-    }
-
-    const updatePointer = (clientX, clientY) => {
-      if (state.reducedMotion) return;
-      const x = clamp(clientX / Math.max(window.innerWidth, 1), 0, 1);
-      const y = clamp(clientY / Math.max(window.innerHeight, 1), 0, 1);
-      root.style.setProperty('--pointer-x', (x - 0.5).toFixed(3));
-      root.style.setProperty('--pointer-y', (y - 0.5).toFixed(3));
-      root.style.setProperty('--light-x', `${(x * 100).toFixed(2)}%`);
-      root.style.setProperty('--light-y', `${(y * 100).toFixed(2)}%`);
-    };
-
-    window.addEventListener('pointermove', (event) => {
-      if (state.reducedMotion || event.pointerType === 'touch') return;
-      if (pointerFrame) cancelAnimationFrame(pointerFrame);
-      pointerFrame = requestAnimationFrame(() => {
-        pointerFrame = 0;
-        updatePointer(event.clientX, event.clientY);
-      });
-    }, { passive: true });
-
-    const updateScrollParallax = () => {
-      scrollFrame = 0;
-      if (state.reducedMotion) return;
-      const normalizedScroll = window.scrollY / Math.max(document.documentElement.scrollHeight, 1);
-      root.style.setProperty('--scroll-parallax', `${(normalizedScroll * 34).toFixed(2)}px`);
-      layers.forEach((layer) => {
-        const rect = layer.getBoundingClientRect();
-        const depth = clamp(numeric(layer.dataset.parallax, 0.25), -1, 1);
-        const offset = clamp((rect.top - (window.innerHeight / 2)) * depth * -0.025, -18, 18);
-        layer.style.setProperty('--parallax-offset', `${offset.toFixed(2)}px`);
-      });
-    };
-
     window.addEventListener('scroll', () => {
-      if (!scrollFrame) scrollFrame = requestAnimationFrame(updateScrollParallax);
+      requestProgressUpdate();
+      queueExperienceSave();
     }, { passive: true });
-    updatePointer(window.innerWidth / 2, window.innerHeight * 0.42);
-    updateScrollParallax();
+    window.addEventListener('resize', requestProgressUpdate, { passive: true });
+    requestProgressUpdate();
   }
 
-  function revealDoor(door, enterButton) {
-    if (!door) return;
-    door.classList.add('is-ready');
-    const lines = $$('[data-door-line], [data-intro-line], .door-line', door)
-      .filter((node) => node !== enterButton && !node.contains(enterButton));
-    const returning = state.startedBefore;
-    const baseDelay = returning || state.reducedMotion ? 0 : 900;
-    const step = returning || state.reducedMotion ? 0 : 1180;
+  function applyEnteredShell(restore = false) {
+    const door = first(['#scene-0', '[data-scene="0"]', '.door', '.intro-screen']);
+    const experience = first(['#experience', '[data-experience]', 'main.experience']);
 
-    if (enterButton) {
-      enterButton.disabled = true;
-      enterButton.hidden = true;
-    }
-    let lastLineDelay = 0;
-    lines.forEach((line, index) => {
-      const authoredDelay = Number.parseFloat(line.dataset.delay);
-      const lineDelay = returning || state.reducedMotion
-        ? 0
-        : Number.isFinite(authoredDelay) ? authoredDelay : baseDelay + (index * step);
-      lastLineDelay = Math.max(lastLineDelay, lineDelay);
-      revealNode(line, lineDelay);
-    });
-    const buttonDelay = returning || state.reducedMotion ? 0 : lastLineDelay + 900;
-    later(() => {
-      if (!enterButton) return;
-      showNode(enterButton);
-      enterButton.classList.add('is-visible', 'revealed');
-      enterButton.disabled = false;
-      enterButton.focus({ preventScroll: true });
-    }, motionDuration(buttonDelay, 0));
-  }
-
-  function enterExperience(door, experience, enterButton) {
-    if (state.entered) return;
     state.entered = true;
-    writeSession(STORAGE_KEYS.started);
     document.body.classList.add('experience-started', 'is-entered');
-    document.body.classList.remove('experience-locked', 'is-locked', 'no-scroll');
-    enterButton?.setAttribute('aria-expanded', 'true');
-    if (enterButton) enterButton.disabled = true;
-
+    document.body.classList.remove('is-locked', 'experience-locked', 'no-scroll');
     if (experience) {
       experience.removeAttribute('aria-hidden');
       experience.inert = false;
     }
 
-    // Audio must be requested before this click handler yields.
+    const starField = first(['#star-field', '[data-star-field]', '.starfield']);
+    if (starField) starField.classList.add('is-visible');
+
+    if (door) {
+      door.classList.add(restore ? 'is-restored-away' : 'is-leaving');
+      door.setAttribute('aria-hidden', 'true');
+      if (restore) door.hidden = true;
+    }
+  }
+
+  function restoreSavedScrollPosition() {
+    if (!state.startedBefore || state.restoredScroll) {
+      state.restoring = false;
+      document.documentElement.classList.remove('is-returning');
+      return;
+    }
+
+    state.restoredScroll = true;
+    const savedY = state.savedScroll;
+    let settled = false;
+    const cancellationEvents = ['pointerdown', 'touchstart', 'wheel', 'keydown'];
+
+    const cancelRestoration = () => {
+      state.restorationCancelled = true;
+    };
+    const removeCancellationListeners = () => {
+      cancellationEvents.forEach((name) => {
+        window.removeEventListener(name, cancelRestoration);
+      });
+    };
+    cancellationEvents.forEach((name) => {
+      window.addEventListener(name, cancelRestoration, { passive: true });
+    });
+
+    const complete = () => {
+      if (settled) return;
+      settled = true;
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!state.restorationCancelled && savedY > 0) {
+            const maximum = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+            const restoredY = clamp(savedY, 0, maximum);
+            window.scrollTo({ top: restoredY, left: 0, behavior: 'auto' });
+          }
+          state.restoring = false;
+          state.currentScene = state.savedScene;
+          document.documentElement.classList.remove('is-returning');
+          removeCancellationListeners();
+          requestProgressUpdate();
+        });
+      });
+    };
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(complete).catch(complete);
+      setTimer(complete, 900);
+    } else {
+      complete();
+    }
+  }
+
+  function restoreExperience() {
+    if (!state.startedBefore) return false;
+    if ('scrollRestoration' in window.history) {
+      try {
+        window.history.scrollRestoration = 'manual';
+      } catch (_error) {
+        // Older embedded browsers can expose a read-only implementation.
+      }
+    }
+
+    applyEnteredShell(true);
+    restoreAudio();
+    document.body.classList.add('has-started-before');
+    document.dispatchEvent(new CustomEvent('andrea:experience-started'));
+    restoreSavedScrollPosition();
+    return true;
+  }
+
+  function revealDoor(door, enterButton) {
+    if (!door) return;
+    door.classList.add('is-ready');
+    const lines = unique(['[data-intro-line]', '[data-door-line]', '.intro-line'], door);
+    let lastDelay = 0;
+
+    lines.forEach((line, index) => {
+      const authored = number(line.dataset.delay, 900 + index * 1800);
+      lastDelay = Math.max(lastDelay, authored);
+      revealNode(line, authored);
+    });
+
+    if (!enterButton) return;
+    enterButton.hidden = true;
+    enterButton.disabled = true;
+    setTimer(() => {
+      show(enterButton);
+      enterButton.disabled = false;
+      enterButton.classList.add('is-visible', 'revealed');
+    }, duration(lastDelay + 900, 0));
+  }
+
+  function enterExperience(door, experience, enterButton) {
+    if (state.entered) return;
+
+    // This is the only audio start before the click handler yields.
     startAudio();
-    window.scrollTo({ top: 0, behavior: 'auto' });
-    door?.classList.add('is-leaving');
+    state.entered = true;
+    state.startedBefore = true;
+    state.currentScene = '1';
+    state.savedScene = '1';
+    state.savedScroll = Math.max(0, window.scrollY);
+
+    if (enterButton) {
+      enterButton.disabled = true;
+      enterButton.setAttribute('aria-expanded', 'true');
+    }
+    applyEnteredShell(false);
+    updateAudioControls();
+    if (experience) {
+      experience.removeAttribute('aria-hidden');
+      experience.inert = false;
+    }
+
+    saveExperienceState();
+    document.documentElement.classList.remove('is-returning');
     document.dispatchEvent(new CustomEvent('andrea:experience-started'));
 
-    later(() => {
-      if (door) {
-        door.classList.add('is-hidden');
-        door.setAttribute('aria-hidden', 'true');
-        door.hidden = true;
-      }
-      if (experience) focusWithoutJump(experience);
-    }, motionDuration(1250, 0));
+    setTimer(() => {
+      if (!door) return;
+      door.hidden = true;
+      door.classList.add('is-hidden');
+    }, duration(1350, 0));
   }
 
   function initEntrance() {
-    const door = first('#door', '[data-door]', '.door', '.intro-screen');
-    const experience = first('#experience', '[data-experience]', 'main.experience');
-    const enterButton = first('#enter-button', '[data-enter]');
+    const door = first(['#scene-0', '[data-scene="0"]', '.door', '.intro-screen']);
+    const experience = first(['#experience', '[data-experience]', 'main.experience']);
+    const enterButton = first(['#enter-button', '[data-enter]']);
 
-    state.startedBefore = Boolean(readSession(STORAGE_KEYS.started));
-    document.body.classList.toggle('has-started-before', state.startedBefore);
-    document.body.classList.toggle('experience-locked', Boolean(door && enterButton));
-    document.body.classList.toggle('is-locked', Boolean(door && enterButton));
+    if (restoreExperience()) return;
 
-    if (experience && door && enterButton) {
+    document.documentElement.classList.remove('is-returning');
+    document.body.classList.add('is-locked', 'experience-locked');
+    document.body.classList.remove('has-started-before');
+    if (experience) {
       experience.setAttribute('aria-hidden', 'true');
       experience.inert = true;
     }
 
     if (!enterButton) {
       state.entered = true;
-      document.body.classList.add('experience-started', 'is-entered');
-      document.body.classList.remove('experience-locked', 'is-locked', 'no-scroll');
-      experience?.removeAttribute('aria-hidden');
-      if (experience) experience.inert = false;
-      queueMicrotask(() => document.dispatchEvent(new CustomEvent('andrea:experience-started')));
+      state.startedBefore = true;
+      applyEnteredShell(false);
+      updateAudioControls();
+      saveExperienceState();
+      document.dispatchEvent(new CustomEvent('andrea:experience-started'));
       return;
     }
 
+    enterButton.type = 'button';
+    enterButton.setAttribute('aria-expanded', 'false');
     revealDoor(door, enterButton);
-    enterButton.addEventListener('click', () => enterExperience(door, experience, enterButton), { once: true });
+    enterButton.addEventListener('click', () => {
+      enterExperience(door, experience, enterButton);
+    }, { once: true });
+  }
+
+  function stopAmbientTimers() {
+    clearTimer(state.shootingTimer);
+    state.shootingTimer = 0;
+    state.shootingActive = false;
+  }
+
+  function resumeAmbientTimers() {
+    const starField = first(['#star-field', '[data-star-field]', '.starfield']);
+    if (state.entered && !state.interactive.finale && starField && !state.reducedMotion) {
+      scheduleShootingStars(starField, false);
+    }
+  }
+
+  function initLifecycle() {
+    window.addEventListener('pagehide', () => {
+      saveExperienceState();
+      stopAmbientTimers();
+    });
+
+    window.addEventListener('pageshow', (event) => {
+      if (!event.persisted) return;
+      // BFCache kept this exact DOM and these exact listeners. Only resume
+      // lightweight state; never initialize or reconstruct anything here.
+      if (state.entered) {
+        applyEnteredShell(true);
+        if (state.audio && state.audio.paused && state.audioAvailable) {
+          state.audioPlaying = false;
+          updateAudioControls();
+        }
+        resumeAmbientTimers();
+        requestProgressUpdate();
+      }
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        saveExperienceState();
+        stopAmbientTimers();
+        return;
+      }
+      if (state.audio && state.audio.paused && state.audioHasPlayed) {
+        state.audioPlaying = false;
+        updateAudioControls();
+      }
+      resumeAmbientTimers();
+      requestProgressUpdate();
+    });
   }
 
   function initExperience() {
+    if (state.initialized) return;
+    state.initialized = true;
     document.documentElement.classList.add('js');
+    loadExperienceState();
     setMotionPreference();
-    state.hapticDone = Boolean(readSession(STORAGE_KEYS.haptic));
+    setAllButtonTypes();
 
     if (typeof motionQuery.addEventListener === 'function') {
       motionQuery.addEventListener('change', setMotionPreference);
@@ -1520,23 +2026,23 @@
       motionQuery.addListener(setMotionPreference);
     }
 
-    // Features initialize independently so an optional/missing element never
-    // prevents the rest of the story from working.
     const initializers = [
       initAudio,
       createStars,
-      initScrollAnimations,
       initInitiativeMoment,
-      initRewindEffect,
+      initProofMoment,
+      initCosmicSunflower,
+      initSunflowerEcho,
       initConstellation,
-      initAndreaStars,
-      initFutureAnimation,
-      initUniverseIllumination,
+      initFutureStars,
+      initGalaxyDepth,
       initSecretStar,
-      initEndingChoices,
+      initAndreaStars,
+      initFinale,
+      initScrollAnimations,
       initScrollProgress,
-      initParallaxLight,
-      initLightRipples
+      initLightRipples,
+      initLifecycle
     ];
 
     initializers.forEach((initialize) => {
@@ -1548,6 +2054,7 @@
     });
 
     initEntrance();
+    setAllButtonTypes();
   }
 
   if (document.readyState === 'loading') {

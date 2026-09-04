@@ -5,13 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#050507">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="Una pequeña experiencia creada especialmente para Andrea.">
+  <meta name="description" content="Una pequeña experiencia creada con intención.">
 
-  <script>document.documentElement.classList.add('js');</script>
+  <script>
+    document.documentElement.classList.add('js');
+    try {
+      if (sessionStorage.getItem('experienceStarted') === 'true') {
+        document.documentElement.classList.add('is-returning');
+      }
+    } catch {}
+  </script>
 
-  <title>Un universo para Andrea</title>
+  <title>Algo para ti ✦</title>
 
-  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23030406'/%3E%3Cpath d='M16 5.5l1.7 8.8 8.8 1.7-8.8 1.7-1.7 8.8-1.7-8.8L5.5 16l8.8-1.7z' fill='%23c3a66b'/%3E%3C/svg%3E">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet">
@@ -31,21 +39,21 @@
     <span class="visually-hidden" data-audio-label>Música activada</span>
   </button>
 
-  <audio id="background-music" preload="none" loop>
-    <source src="assets/music.mp3" type="audio/mpeg">
-  </audio>
+  <button id="resume-audio" class="resume-audio cosmic-btn btn-ghost" type="button" data-resume-audio hidden>Continuar con música ✦</button>
+
+  <audio id="background-music" preload="metadata" playsinline loop data-src="./cancion/algo-que-se-quede.mp3"></audio>
 
   <div id="star-field" class="starfield" data-star-field aria-hidden="true"></div>
 
   <header id="scene-0" class="door intro-screen" data-scene="0" aria-labelledby="door-title">
     <div class="scene-content intro-screen__content door-content intro-content door__content container-fluid">
-      <h1 id="door-title" class="visually-hidden">Un universo para Andrea</h1>
+      <h1 id="door-title" class="visually-hidden">Algo que quería decirte</h1>
 
       <div class="intro-copy" aria-live="polite">
-        <p class="intro-line reveal-text" data-intro-line data-delay="1000">Si llegaste hasta aquí…</p>
-        <p class="intro-line reveal-text" data-intro-line data-delay="2800">…es porque esta vez quise tener yo la iniciativa.</p>
-        <p class="intro-line reveal-text" data-intro-line data-delay="5200">Hay algo que llevo un tiempo queriendo decirte.</p>
-        <p id="headphones-note" class="intro-line intro-line--quiet headphone-note door__headphones reveal-text" data-intro-line data-delay="7600">Ponte los audífonos.</p>
+        <p class="intro-line reveal-text" data-intro-line data-delay="900">Si llegaste hasta aquí…</p>
+        <p class="intro-line reveal-text" data-intro-line data-delay="2900">…es porque esta vez quería hacer algo yo.</p>
+        <p class="intro-line reveal-text" data-intro-line data-delay="5500">Hay cosas que probablemente debí entender antes.</p>
+        <p id="headphones-note" class="intro-line intro-line--quiet headphone-note door__headphones reveal-text" data-intro-line data-delay="8200">Ponte los audífonos.</p>
       </div>
 
       <button id="enter-button" class="cosmic-btn btn-primary" type="button" data-enter aria-describedby="headphones-note">
@@ -55,512 +63,538 @@
   </header>
 
   <main id="experience" class="experience" aria-hidden="true">
-    <article id="story" class="story" aria-label="Una historia para Andrea">
+    <article id="story" class="story" aria-label="Una historia que quería contarte">
 
-      <section id="scene-1" class="scene scene--distraction" data-scene="1" aria-labelledby="scene-1-title">
-        <div class="scene-content container-fluid">
+      <section id="scene-1" class="scene scene--distraction scene--vast" data-scene="1" aria-labelledby="scene-1-title">
+        <div class="scene-content scene-content--narrow container-fluid">
           <h2 id="scene-1-title" class="visually-hidden">Me distraje</h2>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Últimamente…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="180">he estado un poco distraído.</p>
-            <p class="story-line pause-line reveal-text" data-reveal="blur-in" data-delay="520">Tal vez demasiado.</p>
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line hero-line scale-soft" data-reveal="scale-soft">Me distraje.</p>
           </div>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Y mientras estaba distraído…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="220">dejé de cuidar algunos detalles que sí importaban.</p>
-            <p class="story-line accent-line reveal-text" data-reveal="scale-soft" data-delay="620">Lo nuestro.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">Y no te voy a inventar una excusa bonita.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in">Pude hacerlo mejor.</p>
           </div>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">No porque hayas dejado de importarme.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="200">Eso nunca fue el problema.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="420">Simplemente olvidé demostrar algunas cosas.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">Pude buscarte más.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="180">Tener más iniciativa.</p>
           </div>
 
-          <p class="story-line hero-line scene-coda blur-in" data-reveal="blur-in" data-delay="700">Y lo siento.</p>
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Crear más momentos.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="180">Notar algunas cosas antes.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--silence">
+            <p class="story-line hero-line scene-coda blur-in" data-reveal="blur-in">Y lo siento.</p>
+          </div>
         </div>
       </section>
 
-      <section id="scene-2" class="scene scene--without-excuses" data-scene="2" aria-labelledby="scene-2-title">
+      <section id="scene-2" class="scene scene--understanding scene--tall" data-scene="2" aria-labelledby="scene-2-title">
         <div class="scene-content container-fluid">
-          <h2 id="scene-2-title" class="visually-hidden">Sin excusas</h2>
+          <h2 id="scene-2-title" class="visually-hidden">Lo entendí</h2>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Podría intentar explicarlo.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="160">Buscar razones.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="320">Decirte que tenía muchas cosas en la cabeza.</p>
-            <p class="story-line pause-line reveal-text" data-reveal="blur-in" data-delay="700">Pero ninguna cambia lo importante.</p>
+          <p class="story-line reveal-text" data-reveal="fade-up">Hay algo que entendí tarde.</p>
+
+          <div class="insight-stage">
+            <button id="insight-star" class="insight-star last-star star-reveal" type="button" data-insight-star aria-controls="insight-reveal" aria-expanded="false">
+              <span aria-hidden="true">✦</span>
+              <span class="visually-hidden">Tocar la estrella para continuar</span>
+            </button>
           </div>
 
-          <p class="story-line hero-line accent-line scale-soft" data-reveal="scale-soft">Debí hacerlo mejor.</p>
-
-          <div class="narrative-block narrative-block--list">
-            <p class="story-line reveal-text" data-reveal="fade-up">Debí buscarte más.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="140">Debí proponerte más cosas.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="280">Debí sorprenderte.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="420">Debí tener más iniciativa.</p>
-          </div>
-
-          <p class="story-line scene-coda reveal-text" data-reveal="blur-in">Debí hacerte sentir que también estaba luchando por esto.</p>
-
-          <button id="understood-button" class="cosmic-btn btn-ghost" type="button" data-understood aria-controls="initiative-orbit">
-            Lo entendí
-          </button>
-        </div>
-      </section>
-
-      <section id="scene-3" class="scene scene--understanding" data-scene="3" aria-labelledby="scene-3-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-3-title" class="visually-hidden">Aquello que entendí</h2>
-
-          <div id="initiative-orbit" class="initiative-orbit reflection-orbit understanding-orbit constellation" data-initiative-orbit aria-label="Acciones que quiero recuperar">
-            <i id="initiative-star" class="initiative-orbit__center orbit-core reflection-star star-reveal" data-initiative-star aria-hidden="true"></i>
-            <span class="initiative-word orbit-word" data-initiative-word>Buscarte.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Llamarte.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Invitarte.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Escucharte.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Preguntarte cómo estás.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Inventarnos planes.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Sorprenderte.</span>
-            <span class="initiative-word orbit-word" data-initiative-word>Crear recuerdos.</span>
-            <span class="initiative-word initiative-word--center orbit-word" data-initiative-word style="--word-x: 50%; --word-y: 63%;">Estar.</span>
-          </div>
-
-          <div class="narrative-block narrative-block--after-interaction">
-            <p class="story-line accent-line reveal-text" data-reveal="fade-up">Querer también es tener iniciativa.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="280">No debería depender siempre de ti.</p>
-            <p class="story-line pause-line reveal-text" data-reveal="blur-in" data-delay="620">Eso fue algo que tardé en entender.</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-4" class="scene scene--rewind" data-scene="4" aria-labelledby="scene-4-title">
-        <div id="rewind-field" class="scene-content rewind-field rewind-stage container-fluid" data-rewind-field>
-          <h2 id="scene-4-title" class="visually-hidden">Rebobinar</h2>
-
-          <p class="story-line reveal-text" data-reveal="fade-up">Hay cosas que me gustaría hacer diferente.</p>
-
-          <button id="rewind-button" class="cosmic-btn btn-ghost rewind-button btn-rewind" type="button" data-rewind aria-controls="rewind-result" aria-expanded="false">
-            <span class="rewind-icon" aria-hidden="true">↶</span> Volver atrás
-          </button>
-
-          <div id="rewind-result" class="rewind-result" data-rewind-result hidden aria-live="polite">
-            <p class="story-line reveal-text">Pero no puedo cambiar lo que ya pasó.</p>
+          <div id="insight-reveal" class="insight-reveal" data-insight-reveal hidden aria-live="polite">
             <div class="narrative-block">
-              <p class="story-line reveal-text">Lo que sí puedo cambiar…</p>
-              <p class="story-line reveal-text">…es lo que hago a partir de ahora.</p>
+              <p class="story-line">No basta con querer a alguien…</p>
+              <p class="story-line accent-line">…si a veces se te olvida hacerlo sentir.</p>
             </div>
-            <p class="story-line hero-line accent-line scale-soft">Y quiero hacerlo mejor.</p>
+
+            <div class="insight-orbit initiative-orbit" aria-label="Formas de demostrarlo">
+              <span class="insight-word initiative-word" data-insight-word>buscarte</span>
+              <span class="insight-word initiative-word" data-insight-word>escucharte</span>
+              <span class="insight-word initiative-word" data-insight-word>proponer</span>
+              <span class="insight-word initiative-word" data-insight-word>preguntar</span>
+              <span class="insight-word initiative-word" data-insight-word>sorprender</span>
+              <span class="insight-word initiative-word" data-insight-word>estar</span>
+            </div>
+
+            <div class="narrative-block">
+              <p class="story-line">Yo estaba sintiendo muchas cosas…</p>
+              <p class="story-line">…pero demostrando menos de las que debía.</p>
+            </div>
+
+            <p class="story-line hero-line scene-coda">Eso quiero cambiarlo.</p>
           </div>
         </div>
       </section>
 
-      <section id="scene-5" class="scene scene--change" data-scene="5" aria-labelledby="scene-5-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-5-title" class="visually-hidden">Quiero cambiar</h2>
+      <section id="scene-3" class="scene scene--proof scene--tall" data-scene="3" aria-labelledby="scene-3-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-3-title" class="visually-hidden">Sin promesas gigantes</h2>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">No voy a prometerte que mañana voy a ser perfecto.</p>
-            <p class="story-line pause-line reveal-text" data-reveal="blur-in" data-delay="360">No sería real.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">Podría prometerte mil cosas.</p>
           </div>
 
-          <p class="story-line accent-line reveal-text" data-reveal="fade-up">Pero sí puedo prometerte algo.</p>
-
-          <div class="narrative-block narrative-block--list">
-            <p class="story-line reveal-text" data-reveal="fade-up">Voy a trabajar en aquello que estaba dañando lo nuestro.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="120">Voy a recuperar mi iniciativa.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="240">Voy a prestarle atención nuevamente a esos pequeños detalles.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="360">Voy a aprender.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="480">Voy a corregir.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="600">Voy a hacer cambios.</p>
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in">Pero una página bonita no arregla nada por sí sola.</p>
           </div>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">No porque me obligues.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="160">No porque tenga miedo.</p>
-            <p class="story-line accent-line reveal-text" data-reveal="blur-in" data-delay="420">Sino porque quiero estar bien contigo.</p>
-          </div>
+          <p class="story-line reveal-text" data-reveal="fade-up">Así que prefiero algo más difícil.</p>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Porque cuando alguien importa…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="300">…también vale la pena mejorar por lo que están construyendo juntos.</p>
-          </div>
+          <button id="proof-button" class="cosmic-btn btn-ghost" type="button" data-proof-button aria-controls="proof-reveal" aria-expanded="false">¿Qué?</button>
 
-          <p class="story-line hero-line scene-coda scale-soft" data-reveal="scale-soft">Quiero ser mejor para nosotros.</p>
+          <div id="proof-reveal" class="proof-reveal" data-proof-reveal hidden aria-live="polite">
+            <div class="narrative-block narrative-block--quiet">
+              <p class="story-line hero-line">Demostrártelo.</p>
+            </div>
+
+            <div class="narrative-block narrative-block--silence">
+              <p class="story-line hero-line accent-line">Con hechos.</p>
+            </div>
+
+            <div class="narrative-block">
+              <p class="story-line">Con iniciativa.</p>
+              <p class="story-line">Con atención.</p>
+            </div>
+
+            <div class="narrative-block">
+              <p class="story-line">Con detalles.</p>
+              <p class="story-line">Con constancia.</p>
+            </div>
+
+            <p class="story-line scene-coda">No quiero que tengas que pedírmelos.</p>
+          </div>
         </div>
       </section>
 
-      <section id="scene-6" class="scene scene--constellation" data-scene="6" aria-labelledby="scene-6-title">
+      <section id="scene-4" class="scene scene--sunflower scene--vast" data-scene="4" aria-labelledby="scene-4-title">
         <div class="scene-content container-fluid">
-          <h2 id="scene-6-title" class="visually-hidden">Constelación</h2>
-          <p id="constellation-help" class="scene-instruction reveal-text" data-reveal="fade-in">Toca una estrella para descubrir lo que guarda.</p>
+          <h2 id="scene-4-title" class="visually-hidden">Un girasol cósmico</h2>
 
-          <div id="constellation" class="constellation" data-constellation aria-describedby="constellation-help">
-            <button class="constellation-star constellation-star--one star-reveal" type="button" data-constellation-star data-index="0" data-title="Lo que extraño" data-message="Esas conversaciones que empezaban hablando de cualquier bobada y terminaban convirtiéndose en parte de mi día favorito." aria-haspopup="dialog" aria-controls="constellation-panel">
-              <span class="constellation-star__light" aria-hidden="true"></span>
-              <span class="visually-hidden">Abrir: Lo que extraño</span>
+          <div id="cosmic-sunflower" class="cosmic-sunflower" data-cosmic-sunflower role="group" aria-label="Girasol cósmico interactivo" aria-describedby="sunflower-explore-instruction sunflower-instruction">
+            <p id="sunflower-explore-instruction" class="scene-instruction reveal-text" data-reveal="fade-in">Puedes explorar algunos pétalos.</p>
+
+            <div class="sunflower-stage" data-sunflower-mount></div>
+            <div class="sunflower-words" data-sunflower-words aria-hidden="true"></div>
+
+            <button id="sunflower-center" class="sunflower-center" type="button" data-sunflower-center aria-controls="sunflower-revelation" aria-expanded="false" aria-describedby="sunflower-instruction" disabled hidden>
+              <span class="visually-hidden">Abrir el centro del girasol</span>
             </button>
 
-            <button class="constellation-star constellation-star--two star-reveal" type="button" data-constellation-star data-index="1" data-title="Lo que aprendí" data-message="Que una relación no puede vivir solamente de lo que uno siente. También hay que demostrarlo." aria-haspopup="dialog" aria-controls="constellation-panel">
-              <span class="constellation-star__light" aria-hidden="true"></span>
-              <span class="visually-hidden">Abrir: Lo que aprendí</span>
-            </button>
-
-            <button class="constellation-star constellation-star--three star-reveal" type="button" data-constellation-star data-index="2" data-title="Lo que quiero recuperar" data-message="Las ganas de sorprendernos, inventarnos planes y seguir construyendo recuerdos." aria-haspopup="dialog" aria-controls="constellation-panel">
-              <span class="constellation-star__light" aria-hidden="true"></span>
-              <span class="visually-hidden">Abrir: Lo que quiero recuperar</span>
-            </button>
-
-            <button class="constellation-star constellation-star--four star-reveal" type="button" data-constellation-star data-index="3" data-title="Lo que quiero cambiar" data-message="Dejar de esperar. Tener iniciativa. Buscarte simplemente porque quiero verte." aria-haspopup="dialog" aria-controls="constellation-panel">
-              <span class="constellation-star__light" aria-hidden="true"></span>
-              <span class="visually-hidden">Abrir: Lo que quiero cambiar</span>
-            </button>
-
-            <button class="constellation-star constellation-star--five star-reveal" type="button" data-constellation-star data-index="4" data-title="El futuro" data-message="No sé exactamente cómo será. Pero cuando imagino uno bonito, me gustaría que estuvieras ahí." aria-haspopup="dialog" aria-controls="constellation-panel">
-              <span class="constellation-star__light" aria-hidden="true"></span>
-              <span class="visually-hidden">Abrir: El futuro</span>
-            </button>
-
-            <button class="constellation-star constellation-star--six constellation-star--empty star-reveal" type="button" data-constellation-star data-index="5" data-title="Una estrella vacía" data-message="Esta todavía no tiene historia. Tal vez podamos llenarla algún día con algo que todavía no ha pasado." aria-haspopup="dialog" aria-controls="constellation-panel">
-              <span class="constellation-star__light" aria-hidden="true"></span>
-              <span class="visually-hidden">Abrir: Una estrella vacía</span>
-            </button>
+            <p id="sunflower-instruction" class="scene-instruction sunflower-instruction" hidden>Toca el centro.</p>
+            <p id="sunflower-word-live" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
           </div>
 
-          <div id="constellation-panel" class="constellation-modal" data-constellation-panel role="dialog" aria-modal="true" aria-labelledby="constellation-title" aria-describedby="constellation-message" hidden>
-            <div class="constellation-modal__content">
-              <button id="constellation-close" class="modal-close close-button constellation-close" type="button" data-constellation-close aria-label="Cerrar mensaje">×</button>
-              <h3 id="constellation-title" class="constellation-modal__title"></h3>
-              <p id="constellation-message" class="constellation-modal__message"></p>
+          <div id="sunflower-revelation" class="sunflower-revelation" data-sunflower-revelation hidden aria-live="polite">
+            <div class="narrative-block narrative-block--quiet">
+              <p class="story-line hero-line">No quiero que me elijas porque hoy te lo estoy pidiendo.</p>
+            </div>
+
+            <div class="narrative-block narrative-block--silence">
+              <p class="story-line">Quiero hacer las cosas tan bien…</p>
+              <p class="story-line accent-line">…que algún día te nazca hacerlo.</p>
+            </div>
+
+            <div class="narrative-block narrative-block--quiet">
+              <p class="story-line">Y si algún día me eliges como tu compañero…</p>
+              <p class="story-line hero-line scene-coda">…quiero que sea porque mis hechos te dieron razones.</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="scene-7" class="scene scene--love scene-love" data-scene="7" aria-labelledby="scene-7-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-7-title" class="visually-hidden">Te quiero</h2>
+      <section id="scene-5" class="scene scene--sunflower-meaning scene--tall" data-scene="5" aria-labelledby="scene-5-title">
+        <div class="sunflower-echo" data-sunflower-echo aria-hidden="true"></div>
+
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-5-title" class="visually-hidden">Por qué un girasol</h2>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Después de pensar tanto…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="220">en qué quería decirte…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="480">creo que todo termina siendo bastante sencillo.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">Entre tantas estrellas…</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="260">quise dejar algo vivo.</p>
           </div>
-
-          <p id="love-reveal" class="story-line love-reveal hero-line scale-soft" data-reveal="scale-soft" data-haptic="true">Te quiero.</p>
-          <p class="story-line pause-line accent-line reveal-text" data-reveal="blur-in">Pero no te quiero a medias.</p>
-
-          <div class="love-litany love-sequence narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Te quiero como mi mujer.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="130">Te quiero como mi novia.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="260">Te quiero como mi amiga.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="390">Te quiero como mi compañera.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="520">Te quiero como mi cómplice.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="650">Te quiero como esa persona con la que quiero celebrar mis días buenos.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="780">Y como esa persona cuya mano quiero seguir buscando cuando los días no sean tan buenos.</p>
-          </div>
-
-          <p class="story-line hero-line life-line scene-coda scale-soft" data-reveal="scale-soft">Te quiero en mi vida.</p>
 
           <div class="narrative-block narrative-block--quiet">
-            <p class="story-line reveal-text" data-reveal="fade-up">Porque eres especial.</p>
-            <p class="story-line reveal-text" data-reveal="blur-in" data-delay="360">Muchísimo más de lo que probablemente algunas veces he sabido demostrar.</p>
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in">Algo que pudiera crecer.</p>
+          </div>
+
+          <p class="story-line hero-line scene-coda reveal-text" data-reveal="scale-soft">Tal vez esto también pueda hacerlo.</p>
+        </div>
+      </section>
+
+      <section id="scene-6" class="scene scene--love scene-love scene--vast" data-scene="6" aria-labelledby="scene-6-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-6-title" class="visually-hidden">Te quiero</h2>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Hay algo que sí quiero decirte sin darle tantas vueltas.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--silence">
+            <p id="love-reveal" class="story-line love-reveal hero-line scale-soft" data-reveal="scale-soft" data-haptic="true">Te quiero.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line accent-line reveal-text" data-reveal="fade-up">Y eres demasiado especial para mí.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line reveal-text" data-reveal="blur-in">Más de lo que a veces supe demostrar.</p>
           </div>
         </div>
       </section>
 
-      <section id="scene-8" class="scene scene--lasting" data-scene="8" aria-labelledby="scene-8-title">
+      <section id="scene-7" class="scene scene--initiative scene--tall" data-scene="7" aria-labelledby="scene-7-title">
         <div class="scene-content container-fluid">
-          <h2 id="scene-8-title" class="visually-hidden">No quiero algo de un rato</h2>
+          <h2 id="scene-7-title" class="visually-hidden">No quiero que todo salga de ti</h2>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">No estoy aquí porque quiera algo bonito solamente por unas semanas.</p>
-            <p class="story-line accent-line reveal-text" data-reveal="fade-up" data-delay="260">No quiero algo de un rato.</p>
-            <p class="story-line reveal-text" data-reveal="blur-in" data-delay="540">Quiero algo que podamos construir.</p>
+          <div class="scene-content--narrow">
+            <div class="narrative-block">
+              <p class="story-line reveal-text" data-reveal="fade-up">También entendí otra cosa.</p>
+              <p class="story-line accent-line reveal-text" data-reveal="fade-up" data-delay="260">Esto no puede depender siempre de que a ti te nazca primero.</p>
+            </div>
+
+            <div class="narrative-block">
+              <p class="story-line reveal-text" data-reveal="fade-up">También quiero ser yo quien te busque.</p>
+              <p class="story-line reveal-text" data-reveal="fade-up" data-delay="150">Quien proponga.</p>
+            </div>
+
+            <div class="narrative-block">
+              <p class="story-line reveal-text" data-reveal="fade-up">Quien invente algo.</p>
+              <p class="story-line reveal-text" data-reveal="fade-up" data-delay="150">Quien aparezca con un plan.</p>
+            </div>
+
+            <p class="story-line hero-line scene-coda reveal-text" data-reveal="scale-soft">Quiero recuperar esa iniciativa.</p>
           </div>
 
-          <div class="narrative-block narrative-block--list">
-            <p class="story-line reveal-text" data-reveal="fade-up">Con errores.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="110">Con discusiones.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="220">Con risas.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="330">Con planes improvisados.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="440">Con días perfectos.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="550">Y con otros que seguramente no lo serán.</p>
-          </div>
+          <aside class="constellation-interlude" aria-labelledby="constellation-heading">
+            <h3 id="constellation-heading" class="visually-hidden">Una constelación para explorar</h3>
+            <p id="constellation-help" class="scene-instruction reveal-text" data-reveal="fade-in">Si quieres, toca una estrella.</p>
 
-          <p class="story-line hero-line pause-line reveal-text" data-reveal="scale-soft">Pero juntos.</p>
-          <p class="story-line hero-line accent-line scale-soft" data-reveal="scale-soft">Quiero un futuro contigo.</p>
+            <div id="constellation" class="constellation" data-constellation aria-describedby="constellation-help">
+              <svg class="constellation-lines" viewBox="0 0 360 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                <path class="constellation-line" d="M68 75 L230 39 L303 126 L238 216 L90 246 L155 145 Z"></path>
+                <path class="constellation-line" d="M68 75 L155 145 L90 246"></path>
+                <path class="constellation-line" d="M230 39 L155 145 L238 216"></path>
+              </svg>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Uno que no tengamos que correr a construir.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="220">Solo uno que podamos ir creando…</p>
-            <p class="story-line reveal-text" data-reveal="blur-in" data-delay="480">…un día a la vez.</p>
-          </div>
+              <button class="constellation-star constellation-star--one star-reveal" type="button" data-constellation-star data-index="0" data-title="Buscarte" data-message="Tomar la iniciativa y escribirte sin esperar a que todo empiece de tu lado." aria-haspopup="dialog" aria-controls="constellation-panel">
+                <span class="constellation-star__light" aria-hidden="true"></span>
+                <span class="visually-hidden">Abrir: Buscarte</span>
+              </button>
 
-          <div class="narrative-block narrative-block--quiet">
-            <p class="story-line reveal-text" data-reveal="fade-up">Y si la vida nos deja…</p>
-            <p class="story-line reveal-text" data-reveal="blur-in" data-delay="380">…ojalá sea durante muchísimo tiempo.</p>
-          </div>
-        </div>
-      </section>
+              <button class="constellation-star constellation-star--two star-reveal" type="button" data-constellation-star data-index="1" data-title="Escucharte" data-message="Prestar atención también a lo pequeño, no solamente a lo evidente." aria-haspopup="dialog" aria-controls="constellation-panel">
+                <span class="constellation-star__light" aria-hidden="true"></span>
+                <span class="visually-hidden">Abrir: Escucharte</span>
+              </button>
 
-      <section id="scene-9" class="scene scene--universe scene--galaxy galaxy-scene" data-scene="9" aria-labelledby="scene-9-title">
-        <div class="galaxy-wrap" aria-hidden="true">
-          <div id="galaxy" class="galaxy" data-galaxy>
-            <span class="galaxy__layer galaxy__layer--far galaxy-layer"></span>
-            <span class="galaxy__layer galaxy__layer--middle galaxy-layer"></span>
-            <span class="galaxy__layer galaxy__layer--near galaxy-layer"></span>
-            <span class="galaxy__glow galaxy-core"></span>
-          </div>
-        </div>
+              <button class="constellation-star constellation-star--three star-reveal" type="button" data-constellation-star data-index="2" data-title="Proponer" data-message="Llegar con un plan, una hora, una idea. Hacer que algo pase." aria-haspopup="dialog" aria-controls="constellation-panel">
+                <span class="constellation-star__light" aria-hidden="true"></span>
+                <span class="visually-hidden">Abrir: Proponer</span>
+              </button>
 
-        <button id="secret-star" class="secret-star" type="button" data-secret-star aria-controls="secret-message" aria-expanded="false">
-          <span aria-hidden="true">✦</span>
-          <span class="visually-hidden">Estrella escondida</span>
-        </button>
+              <button class="constellation-star constellation-star--four star-reveal" type="button" data-constellation-star data-index="3" data-title="Sorprenderte" data-message="Crear momentos porque sí, no porque una fecha me lo recuerde." aria-haspopup="dialog" aria-controls="constellation-panel">
+                <span class="constellation-star__light" aria-hidden="true"></span>
+                <span class="visually-hidden">Abrir: Sorprenderte</span>
+              </button>
 
-        <div class="scene-content container-fluid">
-          <h2 id="scene-9-title" class="visually-hidden">El universo</h2>
+              <button class="constellation-star constellation-star--five star-reveal" type="button" data-constellation-star data-index="4" data-title="Estar" data-message="Que puedas sentir mi presencia en lo cotidiano, no solo leerla en una promesa." aria-haspopup="dialog" aria-controls="constellation-panel">
+                <span class="constellation-star__light" aria-hidden="true"></span>
+                <span class="visually-hidden">Abrir: Estar</span>
+              </button>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Pensé en regalarte el universo.</p>
-            <p class="story-line humor-line reveal-text" data-reveal="fade-up" data-delay="520">Pero aparentemente comprar uno está un poquito complicado.</p>
-          </div>
+              <button class="constellation-star constellation-star--six constellation-star--empty star-reveal" type="button" data-constellation-star data-index="5" data-title="Aprender" data-message="Mirar mejor, preguntar y corregir lo que haga falta." aria-haspopup="dialog" aria-controls="constellation-panel">
+                <span class="constellation-star__light" aria-hidden="true"></span>
+                <span class="visually-hidden">Abrir: Aprender</span>
+              </button>
+            </div>
 
-          <p class="story-line pause-line reveal-text" data-reveal="blur-in">Así que tuve otra idea.</p>
-
-          <div class="universe-statement narrative-block">
-            <p class="story-line hero-line reveal-text" data-reveal="fade-up">No puedo darte el universo…</p>
-            <p class="story-line hero-line accent-line scale-soft" data-reveal="scale-soft" data-delay="700">…pero puedo crear uno para ti.</p>
-          </div>
-
-          <div class="narrative-block narrative-block--quiet">
-            <p class="story-line reveal-text" data-reveal="fade-up">Tal vez no sea infinito.</p>
-            <p class="story-line tech-aside code-wink reveal-text" data-reveal="fade-up" data-delay="240">Tal vez sean solamente HTML, CSS, JavaScript…</p>
-          </div>
-
-          <div class="narrative-block narrative-block--list">
-            <p class="story-line reveal-text" data-reveal="fade-up">Pero cada pequeña estrella…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="140">cada movimiento…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="280">cada frase…</p>
-            <p class="story-line accent-line reveal-text" data-reveal="blur-in" data-delay="560">…la puse aquí pensando en ti.</p>
-          </div>
-
-          <aside id="secret-message" class="secret-message" data-secret-message hidden aria-live="polite">
-            <button id="secret-close" class="secret-message__close close-button" type="button" data-secret-close aria-label="Cerrar mensaje secreto">×</button>
-            <p class="secret-message__title">Encontraste una estrella escondida.</p>
-            <p>Supongo que siempre he sido mejor escondiendo sentimientos que estrellas.</p>
-            <p>Estoy intentando mejorar en ambas cosas.</p>
-            <p class="humor-line">Pero por si acaso esta sí quedó demasiado fácil.</p>
+            <div id="constellation-panel" class="constellation-modal" data-constellation-panel role="dialog" aria-modal="true" aria-labelledby="constellation-title" aria-describedby="constellation-message" tabindex="-1" hidden>
+              <div class="constellation-modal__content">
+                <button id="constellation-close" class="modal-close close-button constellation-close" type="button" data-constellation-close aria-label="Cerrar mensaje">×</button>
+                <h3 id="constellation-title" class="constellation-modal__title"></h3>
+                <p id="constellation-message" class="constellation-modal__message"></p>
+              </div>
+            </div>
           </aside>
         </div>
       </section>
 
-      <section id="scene-10" class="scene scene--andrea" data-scene="10" aria-labelledby="scene-10-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-10-title" class="visually-hidden">Andrea</h2>
+      <section id="scene-8" class="scene scene--possibility scene--tall" data-scene="8" aria-labelledby="scene-8-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-8-title" class="visually-hidden">Algo puede nacer aquí</h2>
 
-          <div id="andrea-stars" class="andrea-stage" data-andrea-stars role="img" aria-label="Las estrellas se unen para formar el nombre Andrea">
-            <span class="visually-hidden">ANDREA</span>
-            <span class="andrea-name" aria-hidden="true">ANDREA</span>
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">No sé exactamente qué somos todavía.</p>
           </div>
 
-          <div id="andrea-after" class="andrea-caption narrative-block" aria-live="polite">
-            <p class="story-line reveal-text" data-andrea-after hidden>Entre millones de puntos…</p>
-            <p class="story-line reveal-text" data-andrea-after hidden>…hay uno que para mí sigue siendo diferente.</p>
-            <p class="story-line hero-line accent-line scale-soft" data-andrea-after hidden>Esa eres tú.</p>
-            <p class="story-line reveal-text" data-andrea-after hidden>Y quizá por eso…</p>
-            <p class="story-line reveal-text" data-andrea-after hidden>…sigo queriendo encontrarte incluso cuando me pierdo un poco.</p>
-          </div>
-        </div>
-      </section>
-
-      <section id="scene-11" class="scene scene--intent" data-scene="11" aria-labelledby="scene-11-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-11-title" class="visually-hidden">Lo que quiero</h2>
-
-          <div class="narrative-block narrative-block--list">
-            <p class="story-line hero-line reveal-text" data-reveal="fade-up">Quiero volver a conquistarte.</p>
-            <p class="story-line accent-line reveal-text" data-reveal="blur-in" data-delay="220">Pero bien.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="340">Con intención.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="460">Con detalles.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="580">Con tiempo.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="700">Con hechos.</p>
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line hero-line accent-line reveal-text" data-reveal="blur-in">Y está bien.</p>
           </div>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Quiero volver a invitarte.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="170">Volver a sorprenderte.</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="340">Volver a crear momentos.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">No necesito ponerle un nombre hoy.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="220">Solo sé que hay algo aquí…</p>
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in" data-delay="460">…que para mí vale demasiado la pena cuidar.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line reveal-text" data-reveal="fade-up">Y creo que podría convertirse en algo demasiado bonito.</p>
           </div>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Quiero que cuando pienses en nosotros…</p>
-            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="300">…no sientas que eras tú intentando mantenerlo todo vivo.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">Pero no quiero construirlo yo solo.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="220">Ni quiero que lo construyas tú sola.</p>
           </div>
 
-          <p class="story-line hero-line scene-coda scale-soft" data-reveal="scale-soft">Quiero que también puedas sentirme a mí ahí.</p>
-        </div>
-      </section>
-
-      <section id="scene-12" class="scene scene--future" data-scene="12" aria-labelledby="scene-12-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-12-title" class="visually-hidden">Nuestro futuro</h2>
-
-          <div id="future-path" class="future-path" data-future-path role="img" aria-label="Dos estrellas avanzan hasta compartir el mismo camino">
+          <div id="future-path" class="future-path" data-future-path role="img" aria-label="Dos estrellas separadas avanzan juntas en la misma dirección">
             <svg class="future-path__trail" viewBox="0 0 360 190" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-              <path d="M24 46 C112 38, 130 86, 180 96 C230 106, 250 152, 336 144"></path>
-              <path d="M24 148 C105 156, 128 112, 180 100 C232 88, 254 48, 336 52"></path>
+              <path d="M34 122 C112 98 195 99 326 60"></path>
+              <path d="M34 72 C120 48 205 60 326 28"></path>
             </svg>
             <span class="future-star future-star--first" data-future-star="first" aria-hidden="true"></span>
             <span class="future-star future-star--second" data-future-star="second" aria-hidden="true"></span>
           </div>
 
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-future-after hidden>No sé qué estará escrito allá adelante.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Y probablemente nadie lo sabe.</p>
-          </div>
-
-          <p class="story-line accent-line reveal-text" data-future-after hidden>Pero sí sé lo que quiero intentar.</p>
-
-          <div class="narrative-block narrative-block--list">
-            <p class="story-line reveal-text" data-future-after hidden>Quiero estar contigo.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Quiero que estemos bien.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Quiero aprender a cuidarnos.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Quiero verte crecer.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Quiero crecer también.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Quiero celebrar tus logros.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Quiero apoyarte en los días difíciles.</p>
-            <p class="story-line reveal-text" data-future-after hidden>Y quiero que algún día podamos mirar atrás…</p>
-            <p class="story-line reveal-text" data-future-after hidden>…y sentir que valió la pena haber elegido arreglar las cosas.</p>
-          </div>
-
-          <p class="story-line hero-line future-highlight scene-coda scale-soft" data-future-after hidden>Quiero construir un futuro contigo.</p>
-        </div>
-      </section>
-
-      <section id="scene-13" class="scene scene--question scene-question" data-scene="13" aria-labelledby="scene-13-title">
-        <div class="scene-content container-fluid">
-          <h2 id="scene-13-title" class="visually-hidden">Una pregunta</h2>
-          <span class="question-star star-reveal" aria-hidden="true"></span>
-
-          <div class="narrative-block">
-            <p class="story-line reveal-text" data-reveal="fade-up">Después de todo esto…</p>
-            <p class="story-line reveal-text" data-reveal="blur-in" data-delay="340">solo queda una pregunta.</p>
-          </div>
-
-          <button id="show-question" class="cosmic-btn btn-ghost" type="button" data-show-question aria-controls="question-content" aria-expanded="false">
-            Ver pregunta
-          </button>
-
-          <div id="question-content" class="question-content question-reveal" data-question-content hidden aria-live="polite">
-            <h3 class="question-content__title question-text hero-line">¿Me dejas volver a conquistarte?</h3>
-
-            <div class="narrative-block narrative-block--quiet">
-              <p class="story-line">No de golpe.</p>
-              <p class="story-line">No obligándote.</p>
-              <p class="story-line">No prometiendo perfección.</p>
-              <p class="story-line">Solo haciendo las cosas mejor…</p>
-              <p class="story-line">…y demostrártelo poco a poco.</p>
-            </div>
-
-            <div class="choice-actions choice-buttons button-row" role="group" aria-label="Elige una respuesta">
-              <button id="choice-try" class="cosmic-btn btn-primary" type="button" data-choice="try" aria-controls="ending-try">
-                Quiero intentarlo <span aria-hidden="true">✦</span>
-              </button>
-              <button id="choice-time" class="cosmic-btn btn-ghost" type="button" data-choice="time" aria-controls="ending-time">
-                Necesito tiempo
-              </button>
-            </div>
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line" data-future-after hidden>Si algún día lo hacemos…</p>
+            <p class="story-line hero-line scene-coda" data-future-after hidden>…quiero que lo hagamos los dos.</p>
           </div>
         </div>
       </section>
 
-      <section id="ending-try" class="scene ending-panel ending-panel--try ending-panel--yes" data-ending="try" aria-labelledby="ending-try-title" hidden>
-        <div class="scene-content container-fluid">
-          <h2 id="ending-try-title" class="visually-hidden">Quiero intentarlo</h2>
-
-          <div class="narrative-block">
-            <p class="story-line reveal-text">Entonces esta vez…</p>
-            <p class="story-line reveal-text">…déjame hacer algo diferente.</p>
+      <section id="scene-9" class="scene scene--universe scene--galaxy galaxy-scene scene--vast" data-scene="9" aria-labelledby="scene-9-title">
+        <div class="galaxy-wrap" aria-hidden="true">
+          <div id="galaxy" class="galaxy" data-galaxy>
+            <span class="galaxy__nebula galaxy__nebula--one"></span>
+            <span class="galaxy__nebula galaxy__nebula--two"></span>
+            <span class="galaxy__layer galaxy__layer--far galaxy-layer"></span>
+            <span class="galaxy__layer galaxy__layer--middle galaxy-layer"></span>
+            <span class="galaxy__layer galaxy__layer--near galaxy-layer"></span>
+            <span class="galaxy__glow galaxy-core"></span>
+            <span class="galaxy__particles" data-galaxy-particles></span>
           </div>
+        </div>
+
+        <button id="secret-star" class="secret-star" type="button" data-secret-star aria-label="Descubrir una estrella escondida" aria-controls="secret-message" aria-expanded="false">
+          <span aria-hidden="true">✦</span>
+        </button>
+
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-9-title" class="visually-hidden">El universo</h2>
 
           <div class="narrative-block">
-            <p class="story-line reveal-text">El próximo plan…</p>
-            <p class="story-line hero-line accent-line scale-soft">lo preparo yo.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">Pensé en cómo decirte todo esto.</p>
           </div>
 
           <div class="narrative-block narrative-block--quiet">
-            <p class="story-line reveal-text">Y prometo que esto…</p>
-            <p class="story-line reveal-text">…es solamente el comienzo.</p>
-          </div>
-
-          <button id="continue-ending" class="cosmic-btn btn-primary" type="button" data-continue-ending aria-controls="common-ending">
-            Continuará <span aria-hidden="true">✦</span>
-          </button>
-        </div>
-      </section>
-
-      <section id="ending-time" class="scene ending-panel ending-panel--time" data-ending="time" aria-labelledby="ending-time-title" hidden>
-        <div class="scene-content container-fluid">
-          <h2 id="ending-time-title" class="visually-hidden">Necesito tiempo</h2>
-
-          <div class="narrative-block">
-            <p class="story-line hero-line">Está bien.</p>
-            <p class="story-line pause-line">En serio.</p>
+            <p class="story-line reveal-text" data-reveal="blur-in">Y una carta se me quedó pequeña.</p>
           </div>
 
           <div class="narrative-block">
-            <p class="story-line">Este universo no fue creado para presionarte.</p>
-            <p class="story-line">Fue creado para decirte algo que necesitaba demostrar mejor.</p>
-          </div>
-
-          <div class="narrative-block">
-            <p class="story-line">Que te quiero.</p>
-            <p class="story-line">Que eres especial para mí.</p>
-            <p class="story-line">Y que entendí algunas cosas.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up">También pensé en regalarte el universo.</p>
+            <p class="story-line humor-line reveal-text" data-reveal="fade-up" data-delay="480">Pero aparentemente eso todavía no lo venden.</p>
           </div>
 
           <div class="narrative-block narrative-block--quiet">
-            <p class="story-line accent-line">Puedes tomarte todo el tiempo que necesites.</p>
-            <p class="story-line">Gracias por llegar hasta aquí.</p>
+            <p class="story-line hero-line reveal-text" data-reveal="scale-soft">Así que hice uno.</p>
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in" data-delay="620">Para ti.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">No porque una página pueda solucionar las cosas.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="260">Sino porque quería empezar haciendo algo.</p>
+          </div>
+
+          <p class="story-line hero-line scene-coda scale-soft" data-reveal="scale-soft">Yo.</p>
+
+          <aside id="secret-message" class="secret-message" data-secret-message hidden aria-live="polite">
+            <button id="secret-close" class="secret-message__close close-button" type="button" data-secret-close aria-label="Cerrar mensaje secreto">×</button>
+            <p class="secret-message__title">Encontraste una estrella escondida.</p>
+            <p>La dejé aquí por una razón sencilla: incluso cuando no digo mucho, pienso en ti más de lo que parece.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="scene-10" class="scene scene--andrea scene--vast" data-scene="10" aria-labelledby="scene-10-title">
+        <div class="scene-content container-fluid">
+          <h2 id="scene-10-title" class="visually-hidden">Andrea</h2>
+
+          <div id="andrea-stars" class="andrea-stage" data-andrea-stars role="img" aria-label="Estrellas viajan desde distintos lugares y forman el nombre Andrea">
+            <div class="andrea-stars__mount" data-andrea-mount aria-hidden="true"></div>
+            <span class="andrea-name" aria-hidden="true">ANDREA</span>
+          </div>
+
+          <div id="andrea-after" class="andrea-caption narrative-block" aria-live="polite">
+            <p class="story-line" data-andrea-after hidden>Hay millones de puntos en este universo.</p>
+            <p class="story-line" data-andrea-after hidden>Pero este…</p>
+            <p class="story-line hero-line accent-line" data-andrea-after hidden>…lo puse aquí con intención.</p>
           </div>
         </div>
       </section>
 
-      <section id="common-ending" class="scene ending-panel ending-panel--common final-panel final-scene" data-common-ending aria-labelledby="common-ending-title" hidden>
-        <div class="scene-content container-fluid">
-          <h2 id="common-ending-title" class="visually-hidden">Una última cosa</h2>
+      <section id="scene-11" class="scene scene--intent scene--tall" data-scene="11" aria-labelledby="scene-11-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-11-title" class="visually-hidden">Lo que quiero ahora</h2>
 
-          <div class="gratitude-screen gratitude-interlude thanks-screen">
-            <p class="story-line hero-line blur-in thanks-line">Gracias por quedarte hasta aquí.</p>
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line hero-line reveal-text" data-reveal="fade-up">No te estoy pidiendo que decidas nada hoy.</p>
           </div>
 
-          <div class="last-star-stage">
-            <p class="story-line reveal-text">Una última cosa…</p>
-            <button id="last-star-button" class="last-star-button last-star star-reveal" type="button" data-last-star aria-controls="postscript" aria-expanded="false">
-              <span class="visually-hidden" aria-hidden="true">✦</span>
-              <span class="visually-hidden">Abrir la última nota</span>
-            </button>
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="blur-in">Ni que me prometas nada.</p>
           </div>
 
-          <div id="postscript" class="postscript" data-postscript hidden aria-live="polite">
-            <p class="postscript__label">P. D.</p>
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Lo que quiero…</p>
+            <p class="story-line accent-line reveal-text" data-reveal="fade-up" data-delay="300">…es ganarme nuevamente esas ganas.</p>
+          </div>
 
-            <p class="story-line">Si después de todo esto todavía te preguntas por qué me tomé el trabajo de crear un universo entero…</p>
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Que te nazca buscarme.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="160">Que te nazca contarme algo.</p>
+          </div>
 
-            <p class="story-line accent-line pause-line">…es porque todavía me mueves el piso.</p>
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Que te nazca verme.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="160">Que te nazca crear momentos conmigo.</p>
+          </div>
 
-            <div class="narrative-block">
-              <p class="story-line">Y porque entre todas las cosas que podría intentar recuperar…</p>
-              <p class="story-line">…tú sigues siendo mi favorita.</p>
-            </div>
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line reveal-text" data-reveal="blur-in">Y que yo también haga mi parte.</p>
+          </div>
 
-            <p class="story-line hero-line final-signature scale-soft">Te quiero, Andrea.</p>
-            <p class="story-line pause-line">Muchísimo.</p>
-            <p class="story-line final-line goodnight">Buenas noches, mi estrella. <span aria-hidden="true">✦</span></p>
+          <p class="story-line hero-line scene-coda scale-soft" data-reveal="scale-soft">Quiero que podamos volver a sentir que los dos estamos caminando hacia el mismo lado.</p>
+        </div>
+      </section>
+
+      <section id="scene-12" class="scene scene--companion scene--tall" data-scene="12" aria-labelledby="scene-12-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-12-title" class="visually-hidden">Compañero</h2>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line reveal-text" data-reveal="fade-up">Si algún día decides elegirme…</p>
+            <p class="story-line hero-line accent-line reveal-text" data-reveal="blur-in" data-delay="420">quiero que puedas elegirme como tu compañero.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">No porque te lo pedí.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="150">No porque hice una página.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="300">No porque escribí una carta.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in">Sino porque hice las cosas bien.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Porque estuve.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="160">Porque aprendí.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="320">Porque te lo demostré.</p>
+          </div>
+
+          <p class="story-line hero-line scene-coda scale-soft" data-reveal="scale-soft">Quiero ganarme ese lugar.</p>
+        </div>
+      </section>
+
+      <section id="scene-13" class="scene scene--future scene--tall" data-scene="13" aria-labelledby="scene-13-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="scene-13-title" class="visually-hidden">Lo que podría venir</h2>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line hero-line reveal-text" data-reveal="fade-up">Y quién sabe…</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">tal vez algún día miremos todo esto desde mucho más adelante.</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="280">Y nos dé risa pensar que un pequeño universo empezó con una carta.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--silence">
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in">Me gustaría.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">Porque si esto sigue creciendo…</p>
+            <p class="story-line reveal-text" data-reveal="fade-up" data-delay="240">…quiero cuidarlo bien.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line reveal-text" data-reveal="fade-up">Si algún día construimos algo grande…</p>
+            <p class="story-line hero-line scene-coda reveal-text" data-reveal="blur-in" data-delay="360">…quiero poder decir que los dos luchamos por ello.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="closing" class="scene scene--closing scene--vast" data-scene="closing" data-closing aria-labelledby="closing-title">
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="closing-title" class="visually-hidden">No tienes que responder ahora</h2>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line hero-line reveal-text" data-reveal="fade-up">No tienes que responderme ahora.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line reveal-text" data-reveal="fade-up">En realidad…</p>
+            <p class="story-line accent-line reveal-text" data-reveal="blur-in" data-delay="420">…prefiero que no me respondas esto con palabras.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--silence">
+            <p class="story-line hero-line reveal-text" data-reveal="scale-soft">Déjame ir demostrándotelo.</p>
+          </div>
+
+          <button id="last-star-trigger" class="cosmic-btn btn-primary" type="button" data-last-star aria-controls="finale" aria-expanded="false">Una última estrella <span aria-hidden="true">✦</span></button>
+        </div>
+      </section>
+
+      <section id="finale" class="scene scene--finale" data-scene="finale" data-finale aria-labelledby="finale-title" hidden>
+        <div class="finale-ambient" aria-hidden="true">
+          <div class="finale-sunflower" data-final-sunflower-mount></div>
+          <span class="finale-shooting-star" data-shooting-star></span>
+        </div>
+
+        <div class="scene-content scene-content--narrow container-fluid">
+          <h2 id="finale-title" class="visually-hidden">Una última estrella</h2>
+
+          <div class="final-star-stage" aria-hidden="true">
+            <span class="final-star star-reveal" data-final-star></span>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line" data-final-line hidden>Solo quería que supieras algo.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line" data-final-line hidden>Lo entendí.</p>
+            <p class="story-line" data-final-line hidden>Lo siento.</p>
+            <p class="story-line" data-final-line hidden>Y voy a hacerlo mejor.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet">
+            <p class="story-line" data-final-line hidden>No quiero convencerte.</p>
+            <p class="story-line accent-line" data-final-line hidden>Quiero ganarme que te nazca.</p>
+          </div>
+
+          <div class="narrative-block">
+            <p class="story-line" data-final-line hidden>Y si algún día me escoges…</p>
+            <p class="story-line" data-final-line hidden>…quiero sentir que hice méritos para estar a tu lado.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--silence">
+            <p class="story-line hero-line final-signature" data-final-line hidden>Te quiero, Andrea.</p>
+          </div>
+
+          <div class="narrative-block narrative-block--quiet finale-last-words">
+            <p class="story-line" data-final-line hidden>Esto no era una promesa.</p>
+            <p class="story-line hero-line final-line" data-final-line hidden>Era mi primer hecho.</p>
           </div>
         </div>
       </section>
