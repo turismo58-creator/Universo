@@ -7,6 +7,7 @@
   /* CONFIG */
   const CONFIG = Object.freeze({
     sceneCount: 10,
+    readingPace: 1.35,
     transitionMs: 820,
     transitionLowMs: 560,
     audioSource: './cancion/algo-que-se-quede.mp3',
@@ -648,6 +649,7 @@
     const key = timelineKey(timeline);
     if (runtime.groups.has(key)) return;
     runtime.groups.add(key);
+    const pace = clamp(number(timeline.dataset.pace, CONFIG.readingPace), 1, 1.7);
 
     const beats = timelineBeats(timeline);
     const count = storedRevealCount(timeline);
@@ -664,15 +666,15 @@
       let gap = at - previousAt;
       if (index === count && count > 0) gap = clamp(gap, 320, 720);
       if (index === 0) gap = at;
-      cursor += duration(Math.max(0, gap));
+      cursor += duration(Math.max(0, gap) * pace);
       runtime.after(cursor, () => revealBeat(timeline, index));
       previousAt = at;
     }
 
     const finalAt = number(beats[beats.length - 1].dataset.at, 0);
     const completeAt = Math.max(finalAt, number(timeline.dataset.completeAt, finalAt + 900));
-    const tail = count >= beats.length ? 180 : Math.max(120, completeAt - finalAt);
-    runtime.after(cursor + duration(tail), onComplete);
+    const tail = Math.max(120, completeAt - finalAt);
+    runtime.after(cursor + duration(tail * pace), onComplete);
   }
 
   function handleCue(cue, restoring) {
@@ -1366,7 +1368,7 @@
 
   function finishAndrea() {
     setAndreaFormed();
-    currentRuntime(8)?.after(duration(1200), startAndreaCopy);
+    currentRuntime(8)?.after(duration(1500), startAndreaCopy);
   }
 
   function formAndrea() {
