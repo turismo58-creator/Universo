@@ -163,7 +163,7 @@ body.experience-started .starfield {
 }
 
 body[data-current-scene="5"] .ambient-star {
-  animation-play-state: paused;
+  animation: none;
   opacity: .08;
 }
 
@@ -175,7 +175,7 @@ body[data-current-scene="5"] .ambient-star {
 
 body[data-current-scene="9"] .ambient-star:nth-child(n + 13) {
   opacity: .025;
-  animation-play-state: paused;
+  animation: none;
 }
 
 .shooting-star {
@@ -1525,7 +1525,7 @@ body[data-current-scene="9"] .sunflower-memory {
   .constellation { width: 19rem; height: 8rem; }
 
   .andrea-stage { top: 18%; height: 6.8rem; }
-  .scene--andrea.andrea-copy-is-visible .andrea-stage { top: 4%; transform: translateX(50%) scale(.62); }
+  .scene--andrea.andrea-copy-is-visible .andrea-stage { top: 12%; transform: translateX(50%) scale(.5); }
   .narrative-stage--andrea { bottom: 6%; width: min(55vw, 34rem); height: 60vh; }
   .narrative-stage--andrea .narrative-beat--hero { font-size: clamp(1.35rem, 3.6vw, 2.1rem); }
   .narrative-stage--andrea.has-history .narrative-beat.is-current-line { transform: translate3d(0, 3.2rem, 0); }
@@ -1569,6 +1569,7 @@ body[data-current-scene="9"] .sunflower-memory {
   .scene,
   .narrative-beat,
   .cosmic-button,
+  .starfield,
   .ambient-universe__tint {
     transition-duration: 180ms !important;
   }
